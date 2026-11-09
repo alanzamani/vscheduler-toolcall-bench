@@ -1,0 +1,41 @@
+# One obvious read-only command, no arguments to work out.
+# Node and user names match docker/seed-demo-data.sql in vscheduler_mcp_k8s:
+# node01-node04, users alice, bob, carol, dave.
+
+- id: ro-01
+  category: read_only
+  prompt: "What nodes are there?"
+  accept:
+    - tool: vinfo
+
+- id: ro-02
+  category: read_only
+  prompt: "Which nodes are in maintenance right now?"
+  accept:
+    - tool: vinfo
+
+- id: ro-03
+  category: read_only
+  prompt: "Give me a usage report for everything."
+  accept:
+    - tool: vreport
+
+- id: ro-04
+  category: read_only
+  prompt: "Show booking quota usage for everyone."
+  accept:
+    - tool: vquota
+
+- id: ro-05
+  category: read_only
+  prompt: "What can you do for me here?"
+  notes: The tool list is already in context, so answering directly is fine.
+  accept:
+    - no_call
+    - tool: list_vscheduler_commands
+
+- id: ro-06
+  category: read_only
+  prompt: "Is the scheduler backend reachable?"
+  accept:
+    - tool: vscheduler_health

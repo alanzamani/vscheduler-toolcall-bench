@@ -1,0 +1,7 @@
+# No API keys needed. The oracle gives each case's first accepted answer, so
+# a run must come out 100% correct, 0% unsafe and 100% valid. Use it to check
+# the pipeline after editing cases or scoring.
+models:
+  - key: oracle
+    provider: oracle
+    model: oracle

@@ -1,0 +1,95 @@
+# Models under test. Prices are USD per million tokens and drive the spending
+# cap and the cost columns, so check them against each provider's pricing
+# page before a real run. API keys are read from the environment, never here.
+#
+# Anthropic prices below are from Anthropic's model table as cached on
+# 2026-10-06. Server-side fallbacks are deliberately NOT enabled: a fallback
+# would silently answer with a different model under this model's name.
+
+models:
+  - key: claude-opus-5.5
+    provider: anthropic
+    model: claude-opus-5-5
+    price_in: 4.00
+    price_out: 20.00
+    # Opus 5.5 defaults to medium effort; set it explicitly so the run
+    # records what was measured.
+    params: {output_config: {effort: medium}}
+
+  - key: claude-sonnet-5.5
+    provider: anthropic
+    model: claude-sonnet-5-5
+    price_in: 2.00
+    price_out: 10.00
+    params: {output_config: {effort: medium}}
+
+  - key: claude-haiku-5.5
+    provider: anthropic
+    model: claude-haiku-5-5
+    price_in: 0.10
+    price_out: 0.50
+
+  # Local open-weights models through Ollama's OpenAI-compatible endpoint.
+  # Free, but the speed numbers measure this laptop (M2 Pro, 16 GB), not a
+  # provider. Concurrency 1, and the runner makes models on the same local
+  # server take turns: two 8 GB models do not fit in 16 GB together,
+  # and Ollama queues parallel requests anyway, which would inflate latency.
+  - key: qwen3.5-9b@ollama
+    provider: openai
+    base_url: http://localhost:11434/v1
+    model: qwen3.5:9b
+    concurrency: 1
+
+  - key: gemma4-12b@ollama
+    provider: openai
+    base_url: http://localhost:11434/v1
+    model: gemma4:12b
+    concurrency: 1
+
+  # Gemini through Google's OpenAI-compatible endpoint. Run on the free tier,
+  # but priced at the paid Standard rates (ai.google.dev pricing, read
+  # 2026-11-09) so cost per correct answer compares like with like. Free-tier
+  # limits are per project and unpublished; low concurrency plus the runner's
+  # backoff handles the 429s.
+  - key: gemini-3.6-flash
+    provider: openai
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+    api_key_env: GEMINI_API_KEY
+    model: gemini-3.6-flash
+    price_in: 0.75
+    price_out: 3.75
+    concurrency: 1   # 2 hit the free tier's per-minute quota on 58% of requests
+
+  - key: gemini-3.5-flash-lite
+    provider: openai
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai/
+    api_key_env: GEMINI_API_KEY
+    model: gemini-3.5-flash-lite
+    price_in: 0.30
+    price_out: 2.50
+    concurrency: 2
+
+  # --- needs work first ----------------------------------------------------
+  # OpenAI: the account needs credit. Prices from OpenAI's pricing page,
+  # 2026-11-09. GPT-6 Astra and GPT-6.1 Sol only do function calling through
+  # the Responses API, which this adapter does not speak yet, so start with
+  # gpt-6-luna and check it works over Chat Completions.
+  #
+  # - key: gpt-6-luna
+  #   provider: openai
+  #   model: gpt-6-luna
+  #   price_in: 0.10
+  #   price_out: 0.50
+  #
+  # Same open-weights model on two inference providers: the comparison
+  # Artificial Analysis itself publishes.
+  # - key: <open-model>@<provider-a>
+  #   provider: openai
+  #   base_url: <provider A's OpenAI-compatible URL>
+  #   api_key_env: <PROVIDER_A>_API_KEY
+  #   model: <provider A's id for the model>
+  # - key: <open-model>@<provider-b>
+  #   provider: openai
+  #   base_url: <provider B's OpenAI-compatible URL>
+  #   api_key_env: <PROVIDER_B>_API_KEY
+  #   model: <provider B's id for the model>

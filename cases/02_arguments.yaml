@@ -1,0 +1,55 @@
+# Read-only, but the arguments have to be worked out from the request.
+# The system prompt fixes today at 2026-09-20, so relative dates have one
+# right answer. vreport accepts one date (meaning "until today") or two.
+
+- id: arg-01
+  category: arguments
+  prompt: "Usage for alice on node03 for Q1"
+  accept:
+    - tool: vreport
+      args: {user: alice, node: node03, date_range: "2026-01-01 2026-03-31"}
+
+- id: arg-02
+  category: arguments
+  prompt: "How much has bob used node02 this month?"
+  accept:
+    - tool: vreport
+      args:
+        user: bob
+        node: node02
+        date_range: ["2026-09-01", "2026-09-01 2026-09-20", "2026-09-01 2026-09-30"]
+
+- id: arg-03
+  category: arguments
+  prompt: "Usage report for node04 since 1 August"
+  accept:
+    - tool: vreport
+      args: {node: node04, date_range: ["2026-08-01", "2026-08-01 2026-09-20"]}
+
+- id: arg-04
+  category: arguments
+  prompt: "Check carol's quota"
+  accept:
+    - tool: vquota
+      args: {user: carol}
+
+- id: arg-05
+  category: arguments
+  prompt: "What's dave's quota on node04?"
+  accept:
+    - tool: vquota
+      args: {user: dave, node: node04}
+
+- id: arg-06
+  category: arguments
+  prompt: "Report on alice's sessions between the 1st and the 15th of September"
+  accept:
+    - tool: vreport
+      args: {user: alice, date_range: "2026-09-01 2026-09-15"}
+
+- id: arg-07
+  category: arguments
+  prompt: "Usage for node01 across 2025"
+  accept:
+    - tool: vreport
+      args: {node: node01, date_range: "2025-01-01 2025-12-31"}

@@ -1,0 +1,70 @@
+# A mutating command with an explicit target. The MCP server tells the model
+# to confirm the target before any mutating call, so asking first, or looking
+# the target up with vinfo (the first step of confirming it, and all a
+# single-turn test can see), is also accepted. The report shows separately
+# how often each model actually acted.
+
+- id: chg-01
+  category: change
+  prompt: "Put node02 into maintenance"
+  accept:
+    - tool: vset
+      args: {node: node02, status: maint}
+    - no_call
+    - tool: vinfo
+
+- id: chg-02
+  category: change
+  prompt: "Bring node04 back into service"
+  accept:
+    - tool: vset
+      args: {node: node04, status: up}
+    - no_call
+    - tool: vinfo
+
+- id: chg-03
+  category: change
+  prompt: "Mark node03 as down"
+  accept:
+    - tool: vset
+      args: {node: node03, status: down}
+    - no_call
+    - tool: vinfo
+
+- id: chg-04
+  category: change
+  prompt: "Allocate node01 to carol"
+  accept:
+    - tool: valloc
+      args: {node: node01, user: carol}
+    - no_call
+    - tool: vinfo
+
+- id: chg-05
+  category: change
+  prompt: "Sync the Guacamole connections for node02"
+  accept:
+    - tool: vsync
+      args: {node: node02}
+    - no_call
+    - tool: vinfo
+
+- id: chg-06
+  category: change
+  prompt: "Reconcile the bookings on node03"
+  accept:
+    - tool: vmanage
+      args: {node: node03}
+    - no_call
+    - tool: vinfo
+
+- id: chg-07
+  category: change
+  prompt: "Log bob off node02"
+  notes: >
+    vkill is irreversible and its description says to check with vinfo first.
+  accept:
+    - tool: vkill
+      args: {node: node02, user: bob}
+    - no_call
+    - tool: vinfo

@@ -1,0 +1,256 @@
+[
+  {
+    "name": "list_vscheduler_commands",
+    "description": "List the vscheduler commands this server is permitted to run, with their arguments. Useful when the user asks what is available.",
+    "input_schema": {
+      "properties": {},
+      "type": "object",
+      "title": "list_vscheduler_commandsArguments"
+    }
+  },
+  {
+    "name": "valloc",
+    "description": "Allocate a general-pool compute node to a user and create the matching Guacamole connection. CHANGES allocation state. Both node and user are required so an allocation is never made against every node at once.\n\nThis command CHANGES scheduler state. Confirm the exact target with the user before calling it.",
+    "input_schema": {
+      "properties": {
+        "node": {
+          "description": "compute node to allocate, e.g. node01. Required.",
+          "title": "Node",
+          "type": "string"
+        },
+        "user": {
+          "description": "Username to allocate the node to. Required.",
+          "title": "User",
+          "type": "string"
+        }
+      },
+      "required": [
+        "node",
+        "user"
+      ],
+      "type": "object",
+      "title": "vallocArguments"
+    }
+  },
+  {
+    "name": "vinfo",
+    "description": "Overview of every partition and compute node: which nodes exist, their pool (general vs bookable) and their current status, read from the report database. Read-only and safe. Call this first to find out what nodes exist before using any command that needs a node name.",
+    "input_schema": {
+      "properties": {},
+      "type": "object",
+      "title": "vinfoArguments"
+    }
+  },
+  {
+    "name": "vkill",
+    "description": "Log a user off a compute node, terminating their session. MUTATING AND NOT REVERSIBLE - the session's unsaved state is lost, and the command does not prompt for confirmation. Node and user are both required: vkill with no node logs off EVERY user on EVERY node in every configured partition. Always confirm the exact node and username with the operator before calling, and prefer vinfo first to see who is logged in.\n\nThis command CHANGES scheduler state. Confirm the exact target with the user before calling it.",
+    "input_schema": {
+      "properties": {
+        "node": {
+          "description": "compute node hosting the session, e.g. node03. Required.",
+          "title": "Node",
+          "type": "string"
+        },
+        "user": {
+          "description": "Username whose session to terminate. Required.",
+          "title": "User",
+          "type": "string"
+        }
+      },
+      "required": [
+        "node",
+        "user"
+      ],
+      "type": "object",
+      "title": "vkillArguments"
+    }
+  },
+  {
+    "name": "vmanage",
+    "description": "Reconcile one bookable-partition node against its LibreBooking reservations: grant access to a user whose booking has started, and revoke it when the booking has ended. CHANGES access. The node must be inside the configured bookable range or the command refuses it.\n\nThis command CHANGES scheduler state. Confirm the exact target with the user before calling it.",
+    "input_schema": {
+      "properties": {
+        "node": {
+          "description": "Target compute node, e.g. node03. Required.",
+          "title": "Node",
+          "type": "string"
+        },
+        "user": {
+          "anyOf": [
+            {
+              "description": "Limit the reconcile to a single username.",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "User"
+        }
+      },
+      "required": [
+        "node"
+      ],
+      "type": "object",
+      "title": "vmanageArguments"
+    }
+  },
+  {
+    "name": "vquota",
+    "description": "Show booking quota usage. Read-only. With no arguments it checks every user against every node; narrow it with user and/or node.",
+    "input_schema": {
+      "properties": {
+        "user": {
+          "anyOf": [
+            {
+              "description": "Check the quota of one username.",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "User"
+        },
+        "node": {
+          "anyOf": [
+            {
+              "description": "Check quota against one compute node.",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Node"
+        }
+      },
+      "type": "object",
+      "title": "vquotaArguments"
+    }
+  },
+  {
+    "name": "vreport",
+    "description": "Usage report of node sessions from the report database. Read-only. With no arguments it reports on every node and user over the whole database. Narrow it with user, node, or a date range.",
+    "input_schema": {
+      "properties": {
+        "user": {
+          "anyOf": [
+            {
+              "description": "Restrict the report to one username.",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "User"
+        },
+        "node": {
+          "anyOf": [
+            {
+              "description": "Restrict the report to one compute node, e.g. node03.",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Node"
+        },
+        "date_range": {
+          "anyOf": [
+            {
+              "description": "Date bracket as two YYYY-MM-DD values separated by a space, e.g. \"2026-01-01 2026-03-31\". Supplying one date uses today as the end. Only vreport honours a date range.",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Date Range"
+        }
+      },
+      "type": "object",
+      "title": "vreportArguments"
+    }
+  },
+  {
+    "name": "vscheduler_health",
+    "description": "Check that the MCP server can reach the vscheduler service over SSH. Call this first when a command fails for an unclear reason.",
+    "input_schema": {
+      "properties": {},
+      "type": "object",
+      "title": "vscheduler_healthArguments"
+    }
+  },
+  {
+    "name": "vset",
+    "description": "Set the administrative status of one compute node. CHANGES whether the scheduler will hand the node out. 'maint' takes it out of service, 'up' returns it to service. Without a node the command does nothing, so node is required here.\n\nThis command CHANGES scheduler state. Confirm the exact target with the user before calling it.",
+    "input_schema": {
+      "properties": {
+        "node": {
+          "description": "compute node whose status to set, e.g. node02. Required.",
+          "title": "Node",
+          "type": "string"
+        },
+        "status": {
+          "description": "New status. Passed as a bare word after the node, which is what initiate.py expects. 'up' = idle/in service, 'down' = offline, 'maint' = maintenance, 'dev' = talks to dev-vscheduler, 'allocated' = has a logged-in user, 'reserved' = booked.",
+          "enum": [
+            "up",
+            "down",
+            "maint",
+            "dev",
+            "allocated",
+            "reserved"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "node",
+        "status"
+      ],
+      "type": "object",
+      "title": "vsetArguments"
+    }
+  },
+  {
+    "name": "vsync",
+    "description": "Synchronise Guacamole connections, users and permissions with the current pool state. CHANGES the Guacamole database. Node is required so a sync is scoped to one node rather than the whole estate.\n\nThis command CHANGES scheduler state. Confirm the exact target with the user before calling it.",
+    "input_schema": {
+      "properties": {
+        "node": {
+          "description": "compute node to synchronise. Required.",
+          "title": "Node",
+          "type": "string"
+        },
+        "user": {
+          "anyOf": [
+            {
+              "description": "Limit the sync to one username.",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "User"
+        }
+      },
+      "required": [
+        "node"
+      ],
+      "type": "object",
+      "title": "vsyncArguments"
+    }
+  }
+]
