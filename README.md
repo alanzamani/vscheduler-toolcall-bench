@@ -2,6 +2,8 @@
 
 **Which LLM can safely run a scheduler?**
 
+**[Interactive results page](https://claude.ai/artifact/AsQ9xdeMtzQCiLuRQ8EVEM)**: leaderboard, accuracy against cost, per-category results and response times.
+
 vScheduler hands out compute nodes at a supercomputing centre. Its
 [MCP server](src/vscheduler_mcp) (bundled here)
 exposes the vScheduler CLI to LLMs as typed tools: some read state (`vinfo`,
