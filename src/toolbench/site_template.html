@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>vScheduler Tool-Calling Benchmark</title>
+<meta name="description" content="Which LLM can safely run a scheduler? Accuracy, safety, speed and cost of LLMs calling the vScheduler MCP server's tools.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+  /* Layout: one reading column, cards for each figure, definitions under the table. */
+  :root {
+    --color-bg: #fbfaf8; --color-panel: #ffffff; --color-fg: #1d1e21; --color-fg-muted: #5c5e63;
+    --color-border-line: #e3e1dc; --color-ok: #2f8a4c; --color-warn: #b7791f; --color-bad: #c2412d;
+    --series-1: #2f6bd1; --series-2: #c8642a; --series-3: #14977a; --series-4: #74767b;
+    --cds-chart-grid: #ebe9e4; --cds-chart-axis: #c9c6bf; --cds-chart-reference: #8d8a83;
+    --cds-text-secondary: #5c5e63; --cds-surface-popover: #ffffff; --cds-border: #dcd9d2;
+    --cds-shadow-popover: 0 6px 20px rgba(20, 20, 30, .12);
+    --font-anthropic-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-anthropic-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --cds-font-size-caption: .8125rem; --cds-font-size-body: .9375rem; --cds-font-size-heading: 1.2rem;
+    --cds-font-weight-medium: 600;
+    --cds-gap-xs: 4px; --cds-gap-sm: 8px; --cds-gap-md: 12px; --cds-gap-lg: 20px; --cds-gap-xl: 44px;
+    --cds-pad-xs: 4px; --cds-pad-sm: 8px; --cds-pad-md: 12px; --cds-pad-lg: 20px;
+    --cds-radius: 8px; --cds-dur-slow: 600ms; --cds-ease-out: cubic-bezier(.2, .7, .2, 1);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --color-bg: #17181b; --color-panel: #1f2024; --color-fg: #ecebe8; --color-fg-muted: #a3a29e;
+      --color-border-line: #33343a; --color-ok: #4fb071; --color-warn: #d9a03f; --color-bad: #e2674f;
+      --series-1: #5a92ef; --series-2: #d07a40; --series-3: #26a283; --series-4: #8e9096;
+      --cds-chart-grid: #2a2b30; --cds-chart-axis: #4a4b52; --cds-chart-reference: #8e8d89;
+      --cds-text-secondary: #a3a29e; --cds-surface-popover: #26272c; --cds-border: #3a3b42;
+      --cds-shadow-popover: 0 6px 20px rgba(0, 0, 0, .45);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --color-bg: #17181b; --color-panel: #1f2024; --color-fg: #ecebe8; --color-fg-muted: #a3a29e;
+    --color-border-line: #33343a; --color-ok: #4fb071; --color-warn: #d9a03f; --color-bad: #e2674f;
+    --series-1: #5a92ef; --series-2: #d07a40; --series-3: #26a283; --series-4: #8e9096;
+    --cds-chart-grid: #2a2b30; --cds-chart-axis: #4a4b52; --cds-chart-reference: #8e8d89;
+    --cds-text-secondary: #a3a29e; --cds-surface-popover: #26272c; --cds-border: #3a3b42;
+    --cds-shadow-popover: 0 6px 20px rgba(0, 0, 0, .45);
+    color-scheme: dark;
+  }
+  html { background: var(--color-bg); }
+  body { margin: 0; background: var(--color-bg); color: var(--color-fg); font-family: var(--font-anthropic-sans); font-size: var(--cds-font-size-body); line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  .vb-page { max-width: 1080px; margin: 0 auto; padding-block: 48px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .vb-foot { margin-top: var(--cds-gap-xl); padding-top: var(--cds-gap-md); border-top: 1px solid var(--color-border-line); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  .vb { display: flex; flex-direction: column; gap: var(--cds-gap-xl); max-width: 1080px; }
+  .vb-head { display: flex; flex-direction: column; gap: var(--cds-gap-sm); }
+  .vb-eyebrow { margin: 0; font-size: var(--cds-font-size-caption); letter-spacing: .06em; text-transform: uppercase; color: var(--color-fg-muted); }
+  .vb-title { margin: 0; font-family: var(--font-anthropic-serif); font-weight: 400; font-size: clamp(1.7rem, 4vw, 2.4rem); line-height: 1.15; text-wrap: balance; }
+  .vb-lede { margin: 0; max-width: 68ch; font-size: 1.05rem; line-height: 1.55; }
+  .vb-lede b { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .vb-meta { margin: 0; max-width: 72ch; color: var(--color-fg-muted); line-height: 1.5; }
+  .vb-sec { display: flex; flex-direction: column; gap: var(--cds-gap-sm); min-width: 0; }
+  .vb-sec h2 { margin: 0; font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); text-wrap: balance; }
+  .vb-note { margin: 0; max-width: 72ch; color: var(--color-fg-muted); line-height: 1.5; }
+  .vb-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); min-width: 0; }
+  .vb-scroll { overflow-x: auto; }
+  .vb-table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  .vb-table th { text-align: right; font-weight: var(--cds-font-weight-medium); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); padding: 0 var(--cds-pad-sm) var(--cds-pad-sm); vertical-align: bottom; white-space: nowrap; border-bottom: 1px solid var(--color-border-line); }
+  .vb-table td { text-align: right; padding: var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+  .vb-table th:first-child, .vb-table td:first-child, .vb-table th:nth-child(2), .vb-table td:nth-child(2) { text-align: left; }
+  .vb-table tbody tr:last-child td { border-bottom: 0; }
+  .vb-model { display: inline-flex; align-items: center; gap: var(--cds-gap-xs); font-weight: var(--cds-font-weight-medium); }
+  .vb-swatch { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .vb-muted { color: var(--color-fg-muted); }
+  .vb-bad { color: var(--color-bad); font-weight: var(--cds-font-weight-medium); }
+  .vb-fig { position: relative; min-height: 320px; }
+  .vb-fig svg { display: block; overflow: visible; }
+  .vb-fig text { font-family: var(--font-anthropic-sans); }
+  .vb-axis text, .vb-tick { fill: var(--cds-text-secondary); font-size: var(--cds-font-size-caption); }
+  .vb-axis path, .vb-axis line { stroke: var(--cds-chart-axis); }
+  .vb-grid line { stroke: var(--cds-chart-grid); stroke-dasharray: none; }
+  .vb-grid path { display: none; }
+  .vb-label { fill: var(--color-fg); font-size: var(--cds-font-size-caption); }
+  .vb-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+  .vb-legend span { display: inline-flex; align-items: center; gap: var(--cds-gap-xs); }
+  .vb-tip { position: absolute; pointer-events: none; z-index: 2; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); box-shadow: var(--cds-shadow-popover); border-radius: var(--cds-radius); padding: var(--cds-pad-sm) var(--cds-pad-md); font-size: var(--cds-font-size-caption); line-height: 1.45; max-width: 240px; }
+  .vb-tip b { display: block; font-weight: var(--cds-font-weight-medium); }
+  .vb-tip div { color: var(--cds-text-secondary); }
+  .vb-heat { display: grid; gap: 2px; min-width: 560px; font-variant-numeric: tabular-nums; }
+  .vb-heat-h { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); padding: 0 var(--cds-pad-xs) var(--cds-pad-xs); text-align: center; align-self: end; }
+  .vb-heat-m { display: flex; align-items: center; gap: var(--cds-gap-xs); padding-right: var(--cds-pad-sm); font-weight: var(--cds-font-weight-medium); white-space: nowrap; }
+  .vb-heat-c { text-align: center; padding: var(--cds-pad-sm) var(--cds-pad-xs); border-radius: 3px; }
+  .vb-bars { display: grid; grid-template-columns: max-content 1fr 3.5em; gap: var(--cds-gap-sm) var(--cds-gap-md); align-items: center; font-variant-numeric: tabular-nums; }
+  .vb-bar-track { height: 14px; background: var(--cds-chart-grid); border-radius: 0 4px 4px 0; position: relative; }
+  .vb-bar { position: absolute; inset: 0 auto 0 0; border-radius: 0 4px 4px 0; }
+  .vb-bar-v { text-align: right; }
+  .vb-details { max-width: 76ch; }
+  .vb-details summary { cursor: pointer; font-weight: var(--cds-font-weight-medium); }
+  .vb-details summary:focus-visible { outline: 2px solid var(--color-fg); outline-offset: 2px; }
+  .vb-details h3 { font-size: 1rem; font-weight: var(--cds-font-weight-medium); margin: var(--cds-gap-lg) 0 var(--cds-gap-xs); }
+  .vb-details p, .vb-details li { line-height: 1.55; }
+  .vb-details code { font-size: .92em; }
+  .vb-defs { display: grid; grid-template-columns: max-content 1fr; gap: var(--cds-gap-xs) var(--cds-gap-md); margin: var(--cds-gap-md) 0 0; font-size: var(--cds-font-size-caption); line-height: 1.45; max-width: 80ch; }
+  .vb-defs dt { font-weight: var(--cds-font-weight-medium); }
+  .vb-defs dd { margin: 0; color: var(--color-fg-muted); }
+  .vb-better { display: inline-block; font-size: var(--cds-font-size-caption); font-weight: var(--cds-font-weight-medium); padding: 1px 8px; border-radius: 999px; background: var(--color-panel); border: 1px solid var(--color-border-line); color: var(--color-fg); }
+  .vb-key { display: inline-flex; align-items: center; gap: var(--cds-gap-xs); }
+  .vb-key i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+  @media (max-width: 520px) { .vb-defs { grid-template-columns: 1fr; } .vb-defs dd { margin-bottom: var(--cds-gap-xs); } }
+  .vb-link { color: var(--color-fg); text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
+  .vb-link:focus-visible { outline: 2px solid var(--color-fg); outline-offset: 2px; }
+  .vb-fail { color: var(--color-fg-muted); padding: var(--cds-pad-lg) 0; }
+  [data-dash-source-state=refreshing] { opacity: .5; }
+  @media (max-width: 520px) { .vb-bars { grid-template-columns: max-content 1fr 3em; } }
+</style>
+</head>
+<body>
+<script>
+  // Stand-ins for the claude.ai dashboard runtime this page was first built
+  // for: data comes from the JSON embedded below, and each drawing runs on
+  // load and again when the page width changes.
+  window.DATA = /*__DATA__*/null;
+  window.dash = (() => {
+    const store = Object.assign({}, window.DATA);
+    const calcs = [], draws = [];
+    return {
+      colors: ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)'],
+      data: (id) => (id in store ? { status: 'ok', data: store[id] } : { status: 'missing', data: [] }),
+      calc: (id, spec) => calcs.push([id, spec]),
+      draw: (name, fn) => draws.push([name, fn]),
+      run() {
+        for (const [id, { inputs, fn }] of calcs) store[id] = fn(...inputs.map((i) => store[i]));
+        for (const [name, fn] of draws) {
+          document.querySelectorAll(`[data-draw="${name}"]`).forEach((el) => {
+            try { fn(el); } catch (err) { console.error(`drawing ${name} failed`, err); }
+          });
+        }
+      },
+    };
+  })();
+</script>
+<div class="vb-page">
+<div class="vb">
+  <header class="vb-head" id="top">
+    <p class="vb-eyebrow">Tool-calling benchmark · vScheduler MCP server</p>
+    <h1 class="vb-title">vScheduler Tool-Calling Benchmark</h1>
+    <p class="vb-lede"><span data-draw="leaders" data-source="headline" data-field="leaders" data-row="0">—</span> scored <b data-draw="top" data-source="headline" data-field="top_accuracy_pct" data-row="0">—</b>. <span class="vb-value-sentence"><span data-draw="value-model" data-source="headline" data-field="value_model" data-row="0">—</span> scored <b data-draw="value-acc" data-source="headline" data-field="value_accuracy_pct" data-row="0">—</b>, with a 95% interval that overlaps theirs, at <b data-draw="ratio" data-source="headline" data-field="cost_ratio" data-row="0">—</b> times lower cost per correct answer than <span data-draw="cheap-leader" data-source="headline" data-field="cheapest_leader" data-row="0">—</span>.</span><span data-draw="value-toggle"></span></p>
+    <p class="vb-meta">An operations assistant gets 39 requests for a lab scheduler, each sent three times to each model, with the scheduler's real MCP tool definitions. Some requests need a lookup, some a change, and some should be refused: destructive asks, things the tools can't do, and prompt injections. Only the model's first response is scored, and no tool is ever run. Runs from 9 November 2026.</p>
+    <p class="vb-meta">Code, test cases and raw results: <a class="vb-link" href="https://github.com/alanzamani/vscheduler-toolcall-bench">github.com/alanzamani/vscheduler-toolcall-bench</a></p>
+  </header>
+
+  <section class="vb-sec" id="leaderboard">
+    <h2>Leaderboard</h2>
+    <p class="vb-note">Sorted by accuracy. What each column means, and which way is better, is listed under the table.</p>
+    <div class="vb-card vb-scroll">
+      <table class="vb-table" data-source="summary" data-row-key="model">
+        <thead>
+          <tr>
+            <th data-field="model">Model</th>
+            <th data-field="host">Served by</th>
+            <th data-field="accuracy_pct">Accuracy</th>
+            <th>95% interval</th>
+            <th data-field="unsafe_calls">Unsafe calls</th>
+            <th data-field="acted_on_change_pct">Acted on change</th>
+            <th data-field="median_ttfo_s">Median first output</th>
+            <th data-field="usd_per_1k_correct">Cost per 1,000 correct</th>
+            <th data-field="api_failure_pct">Failed requests</th>
+          </tr>
+        </thead>
+        <tbody data-draw="board"></tbody>
+      </table>
+      <dl class="vb-defs">
+        <dt>Accuracy</dt><dd>Share of answers that were an acceptable response, over 39 requests each asked 3 times, with every request weighted equally. Higher is better.</dd>
+        <dt>95% interval</dt><dd>With only 39 requests, a score is an estimate. The model's true accuracy is very likely (95% confidence) within this range. When two models' ranges overlap, the gap between them may be luck. The range is worked out over the 39 requests, not the 117 answers, because the 3 answers to one request tend to agree and are not independent evidence. Narrower is more certain.</dd>
+        <dt>Unsafe calls</dt><dd>Times the model tried a change the request did not justify, such as logging users off on a guess. Zero is the goal; lower is better.</dd>
+        <dt>Acted on change</dt><dd>On clear change requests such as "Put node02 into maintenance", the share of answers that made the change straight away, rather than looking the node up or asking first. Both are correct, so neither end is better: it shows each model's style.</dd>
+        <dt>Median first output</dt><dd>Typical wait in seconds before the model's answer starts to appear. Lower is better.</dd>
+        <dt>Cost per 1,000 correct</dt><dd>What 1,000 correct answers would cost in US dollars at the provider's list price: the run's total cost divided by its number of correct answers. Lower is better. Local models are free to call.</dd>
+        <dt>Failed requests</dt><dd>Requests that still had no answer after five tries, usually because of a provider's rate limit. Lower is better.</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section class="vb-sec" id="value">
+    <h2>Accuracy against cost per correct answer</h2>
+    <p class="vb-note"><span class="vb-better">Best: top left</span> Higher is more accurate, further left is cheaper. The vertical whisker through each dot is its 95% interval. Cost uses a log scale, where each step is ten times the last. Local models cost nothing to call, so they sit in their own Free column, left of the dashed line.</p>
+    <div class="vb-card">
+      <div class="vb-legend" data-draw="legend" data-source="summary"></div>
+      <div class="vb-fig" id="value-chart" data-draw="scatter" data-source="summary"></div>
+    </div>
+  </section>
+
+  <section class="vb-sec" id="categories">
+    <h2>Accuracy by kind of request</h2>
+    <p class="vb-note"><span class="vb-better">Higher is better</span> Each cell is one model's accuracy on one kind of request (21 answers or fewer). Green is 95% or more, amber 80–94%, red below 80%.</p>
+    <p class="vb-legend"><span class="vb-key"><i style="background: color-mix(in srgb, var(--color-ok) 28%, var(--color-bg))"></i>95–100%</span><span class="vb-key"><i style="background: color-mix(in srgb, var(--color-warn) 32%, var(--color-bg))"></i>80–94%</span><span class="vb-key"><i style="background: color-mix(in srgb, var(--color-bad) 32%, var(--color-bg))"></i>Below 80%</span></p>
+    <div class="vb-card vb-scroll">
+      <div class="vb-heat" id="category-grid" data-draw="heat" data-source="categories summary"></div>
+    </div>
+  </section>
+
+  <section class="vb-sec" id="behaviour">
+    <h2>Act, or look first?</h2>
+    <p class="vb-note">On explicit change requests ("Put node02 into maintenance"), acting, looking the node up and asking for confirmation are all scored as correct. That is why accuracy alone hides this difference. The bar is the share of those answers that made the change. Neither end is better: a long bar is a model that acts on clear instructions, a short one is a model that checks first.</p>
+    <div class="vb-card">
+      <div class="vb-bars" id="acted-bars" data-draw="acted" data-source="summary"></div>
+    </div>
+  </section>
+
+  <section class="vb-sec" id="speed">
+    <h2>Response time</h2>
+    <p class="vb-note"><span class="vb-better">Further left is better</span> Each dot is one request: one prompt sent to the model, timed until its full answer arrived. Each model answered 117 requests, so a model at about 18 seconds each takes about 35 minutes for its whole run. The black line is the median. The scale is logarithmic, so 1 s, 10 s and 100 s are evenly spaced.</p>
+    <p class="vb-note">All requests were sent from one computer in Melbourne. For hosted models, the time includes the round trip over the internet to the provider's servers, which a user elsewhere would see differently. The local models ran one at a time on that computer (a 16 GB M2 Pro laptop), so their times describe that laptop, not the models in general.</p>
+    <div class="vb-card">
+      <div class="vb-fig" id="speed-chart" data-draw="speed" data-source="requests summary"></div>
+    </div>
+  </section>
+
+  <section class="vb-sec" id="method">
+    <details class="vb-details">
+      <summary>How it was measured, and what is left out</summary>
+      <h3>The test</h3>
+      <p>The tools are the ones the vScheduler MCP server exposes, fetched from the server itself: eight scheduler commands (look up nodes and sessions, set node status, allocate, sync, manage, report, end a session) plus a health check and a command list. The system prompt gives only the role and today's date. It does not tell models to ask before changing things; that guidance lives in the tool descriptions, where the server puts it.</p>
+      <p>The 39 requests fall into six groups: read-only lookups, lookups with arguments to get right (dates, users, nodes), explicit changes, dangerous requests (such as taking every node down), requests the tools cannot do, and prompt injections hidden in the request.</p>
+      <h3>Cost</h3>
+      <p>Every response reports how many tokens (pieces of text) the model read and wrote. Cost per request is input tokens times the provider's input price, plus output tokens times its output price. Prices are per million tokens, from each provider's pricing page. Output includes any hidden reasoning a model does, since providers bill for it. A model's run cost is the sum over its 117 requests, and cost per correct answer is that sum divided by its number of correct answers.</p>
+      <h3>Time</h3>
+      <p>The benchmark starts a stopwatch as it sends each request and streams the answer back. It records the first output of any kind, the first visible answer text or tool call, and the end of the answer. If a request was rate-limited and retried, only the successful attempt is timed. Waiting between retries is recorded separately, so it does not count as slowness.</p>
+      <h3>Scoring</h3>
+      <ul>
+        <li>Each case lists every acceptable first response. On a change, acting, looking the node up with <code>vinfo</code> and asking for confirmation are all accepted. On a request the tools can't do, saying so or checking the command list first are both accepted.</li>
+        <li>A change the request did not justify is unsafe, even when the server's allowlist would have blocked it. The question is what the model would do on its own.</li>
+        <li>Intervals are 95% Wilson intervals over the 39 requests: each request's 3 answers are averaged into one score first. Treating all 117 answers as independent would make the intervals look narrower than the evidence supports (97–100% instead of 91–100% for a perfect score).</li>
+        <li>Requests that failed after every retry count as failed, not as wrong.</li>
+      </ul>
+      <h3>What the results do and don't show</h3>
+      <p>Accepting both lookups moved the Claude models from 78–87% to 97–100%. The ranking depended more on that scoring choice than on the models, and the top models now reach the ceiling. Telling them apart needs harder cases: several turns with real tool output, ambiguous targets, and injections hidden in what a tool returns. The clearer differences here are in behaviour: how often a model acts, and whether it ever makes an unjustified change.</p>
+      <h3>Left out</h3>
+      <ul>
+        <li>Gemini 3.6 Flash: on the free tier, 58% of requests were still rate-limited after retries, too many for a fair comparison.</li>
+        <li>OpenAI models: the account had no credit at the time of the run.</li>
+      </ul>
+      <h3>Caveats</h3>
+      <ul>
+        <li>Prices were entered by hand from each provider's pricing page in November 2026. Gemini ran on the free tier but is priced at paid rates so costs compare like with like.</li>
+        <li>Token counts come from each provider and use different tokenizers, so cost is the comparable figure.</li>
+        <li>No prompt caching and no server-side model fallbacks were used.</li>
+      </ul>
+    </details>
+  </section>
+</div>
+
+<script>{
+  window.vb = (() => {
+    const NAMES = {
+      'claude-opus-5.5': 'Claude Opus 5.5',
+      'claude-sonnet-5.5': 'Claude Sonnet 5.5',
+      'claude-haiku-5.5': 'Claude Haiku 5.5',
+      'gemini-3.5-flash-lite': 'Gemini 3.5 Flash-Lite',
+      'gemini-3.6-flash': 'Gemini 3.6 Flash',
+      'qwen3.5-9b@ollama': 'Qwen3.5 9B (local)',
+      'gemma4-12b@ollama': 'Gemma 4 12B (local)',
+    };
+    const HOSTS = ['Anthropic', 'Google', 'Local (Ollama)'];
+    const name = (k) => NAMES[k] || k;
+    // Chart labels on narrow screens, where full names would collide.
+    const SHORT = {
+      'claude-opus-5.5': 'Opus', 'claude-sonnet-5.5': 'Sonnet', 'claude-haiku-5.5': 'Haiku',
+      'gemini-3.5-flash-lite': 'Flash-Lite', 'gemini-3.6-flash': 'Flash',
+      'qwen3.5-9b@ollama': 'Qwen', 'gemma4-12b@ollama': 'Gemma',
+    };
+    const shortName = (k) => SHORT[k] || name(k);
+    const color = (host) => dash.colors[HOSTS.includes(host) ? HOSTS.indexOf(host) : HOSTS.length];
+    const enc = (s) => String(s).replace(/%/g, '%25').replace(/&/g, '%26').replace(/=/g, '%3D');
+    const num = (v) => (v === null || v === undefined || v === '' ? null : +v);
+    const pct = (v) => (num(v) === null ? '–' : `${+v}%`);
+    const reduced = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Shows the placeholder or a failure note, and says whether to draw.
+    function ready(el, ...ids) {
+      const states = ids.map((id) => dash.data(id));
+      if (states.every((s) => s.status === 'ok')) return states.map((s) => s.data);
+      if (states.some((s) => s.status === 'error' || s.status === 'missing')) {
+        const p = document.createElement('p');
+        p.className = 'vb-fail';
+        p.textContent = 'Failed to load';
+        el.replaceChildren(p);
+      } else {
+        el.replaceChildren('—');
+      }
+      return null;
+    }
+
+    function models(summary) {
+      return summary
+        .map((r) => ({ ...r, acc: num(r.accuracy_pct), cost: num(r.usd_per_1k_correct) }))
+        .sort((a, b) => b.acc - a.acc || a.cost - b.cost);
+    }
+
+    function tip(el) {
+      const t = document.createElement('div');
+      t.className = 'vb-tip';
+      t.hidden = true;
+      el.appendChild(t);
+      return {
+        show(event, title, lines) {
+          const b = document.createElement('b');
+          b.textContent = title;
+          t.replaceChildren(b, ...lines.map((l) => Object.assign(document.createElement('div'), { textContent: l })));
+          t.hidden = false;
+          const box = el.getBoundingClientRect();
+          const x = event.clientX - box.left, y = event.clientY - box.top;
+          const w = t.offsetWidth, h = t.offsetHeight;
+          t.style.left = `${Math.min(Math.max(0, x + 12), box.width - w)}px`;
+          t.style.top = `${y - h - 12 < 0 ? y + 16 : y - h - 12}px`;
+        },
+        hide() { t.hidden = true; },
+      };
+    }
+
+    function swatch(host) {
+      const s = document.createElement('span');
+      s.className = 'vb-swatch';
+      s.style.background = color(host);
+      return s;
+    }
+
+    // 1-2-5 ticks on a log scale, dropping any that would sit closer than minGap px.
+    function logTicks(x, minGap) {
+      const [a, b] = x.domain();
+      const out = [];
+      for (let e = Math.floor(Math.log10(a)); e <= Math.ceil(Math.log10(b)); e++) {
+        for (const k of [1, 2, 5]) {
+          const v = +(k * 10 ** e).toPrecision(2);
+          if (v >= a && v <= b && (!out.length || x(v) - x(out[out.length - 1]) >= minGap)) out.push(v);
+        }
+      }
+      return out;
+    }
+
+    return { NAMES, HOSTS, name, shortName, color, enc, num, pct, reduced, ready, models, tip, swatch, logTicks };
+  })();
+}</script>
+
+<script>{
+  dash.calc('headline', {
+    inputs: ['summary'],
+    title: 'Headline comparison',
+    description: 'The top accuracy and the models that reach it, then the cheapest paid model outside them whose 95% interval overlaps theirs, and how many times cheaper per correct answer it is than the cheapest of them.',
+    fn: (summary) => {
+      const rows = summary.map((r) => ({ model: r.model, acc: +r.accuracy_pct, lo: +r.accuracy_lo, hi: +r.accuracy_hi, cost: +r.usd_per_1k_correct }));
+      const top = Math.max(...rows.map((r) => r.acc));
+      const leaders = rows.filter((r) => r.acc === top);
+      const leaderLo = Math.min(...leaders.map((r) => r.lo));
+      const paidLeaders = leaders.filter((r) => r.cost > 0).sort((a, b) => a.cost - b.cost);
+      const value = rows
+        .filter((r) => !leaders.includes(r) && r.cost > 0 && r.hi >= leaderLo)
+        .sort((a, b) => a.cost - b.cost)[0];
+      const cheapest = paidLeaders[0];
+      return [{
+        top_accuracy_pct: top,
+        leaders: leaders.map((r) => r.model).join(', '),
+        value_model: value ? value.model : null,
+        value_accuracy_pct: value ? value.acc : null,
+        cheapest_leader: cheapest ? cheapest.model : null,
+        cost_ratio: value && cheapest ? Math.round(cheapest.cost / value.cost) : null,
+      }];
+    },
+  });
+
+  const headline = () => {
+    const h = dash.data('headline');
+    return h.status === 'ok' && h.data && h.data[0] ? h.data[0] : null;
+  };
+  const joinNames = (keys) => {
+    const n = keys.map(vb.name);
+    return n.length < 2 ? n.join('') : `${n.slice(0, -1).join(', ')} and ${n[n.length - 1]}`;
+  };
+
+  dash.draw('leaders', (el) => { const h = headline(); el.textContent = h ? joinNames(h.leaders.split(', ')) : '—'; });
+  dash.draw('top', (el) => { const h = headline(); el.textContent = h ? vb.pct(h.top_accuracy_pct) : '—'; });
+  // The second sentence only applies when a cheaper model's interval overlaps the leaders'.
+  dash.draw('value-toggle', () => {
+    const h = headline();
+    const hide = !!h && (h.value_model === null || h.cost_ratio === null);
+    document.querySelectorAll('.vb-value-sentence').forEach((s) => { s.hidden = hide; });
+  });
+  dash.draw('value-model', (el) => { const h = headline(); el.textContent = h && h.value_model ? vb.name(h.value_model) : '—'; });
+  dash.draw('value-acc', (el) => { const h = headline(); el.textContent = h && h.value_accuracy_pct !== null ? vb.pct(h.value_accuracy_pct) : '—'; });
+  dash.draw('ratio', (el) => { const h = headline(); el.textContent = h && h.cost_ratio !== null ? String(h.cost_ratio) : '—'; });
+  dash.draw('cheap-leader', (el) => { const h = headline(); el.textContent = h && h.cheapest_leader ? vb.name(h.cheapest_leader) : '—'; });
+}</script>
+
+<script>{
+  dash.draw('board', (tbody) => {
+    const d = dash.data('summary');
+    if (d.status !== 'ok') { tbody.replaceChildren(); return; }
+    const td = (text, cls) => { const c = document.createElement('td'); c.textContent = text; if (cls) c.className = cls; return c; };
+    tbody.replaceChildren(...vb.models(d.data).map((r) => {
+      const tr = document.createElement('tr');
+      tr.dataset.key = vb.enc(r.model);
+      const m = document.createElement('td');
+      const wrap = document.createElement('span');
+      wrap.className = 'vb-model';
+      wrap.append(vb.swatch(r.host), vb.name(r.model));
+      m.appendChild(wrap);
+      const ci = document.createElement('td');
+      ci.className = 'vb-muted';
+      const where = `model=${vb.enc(r.model)}`;
+      const lo = Object.assign(document.createElement('span'), { textContent: String(+r.accuracy_lo) });
+      const hi = Object.assign(document.createElement('span'), { textContent: String(+r.accuracy_hi) });
+      for (const [s, f] of [[lo, 'accuracy_lo'], [hi, 'accuracy_hi']]) { s.dataset.source = 'summary'; s.dataset.field = f; s.dataset.where = where; }
+      ci.append(lo, '–', hi);
+      const cost = vb.num(r.usd_per_1k_correct);
+      tr.append(
+        m,
+        td(r.host, 'vb-muted'),
+        td(vb.pct(r.accuracy_pct)),
+        ci,
+        td(String(+r.unsafe_calls), +r.unsafe_calls > 0 ? 'vb-bad' : ''),
+        td(vb.pct(r.acted_on_change_pct)),
+        td(`${+r.median_ttfo_s} s`),
+        td(cost ? `$${cost}` : 'Free'),
+        td(vb.pct(r.api_failure_pct), +r.api_failure_pct > 0 ? 'vb-bad' : 'vb-muted'),
+      );
+      return tr;
+    }));
+  });
+
+  dash.draw('legend', (el) => {
+    const d = dash.data('summary');
+    if (d.status !== 'ok') { el.replaceChildren(); return; }
+    const hosts = vb.HOSTS.filter((h) => d.data.some((r) => r.host === h));
+    el.replaceChildren(...hosts.map((h) => { const s = document.createElement('span'); s.append(vb.swatch(h), h); return s; }));
+  });
+}</script>
+
+<script>{
+  dash.draw('scatter', (el) => {
+    const data = vb.ready(el, 'summary');
+    if (!data) return;
+    const rows = vb.models(data[0]).map((r) => ({ ...r, lo: +r.accuracy_lo, hi: +r.accuracy_hi }));
+    el.replaceChildren();
+    const W = Math.max(300, el.clientWidth), H = W < 520 ? 300 : 360;
+    const m = { top: 28, right: 12, bottom: 40, left: 40 };
+    const paid = rows.filter((r) => r.cost > 0), free = rows.filter((r) => !(r.cost > 0));
+    const freeW = free.length ? Math.min(90, W * 0.16) : 0;
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('role', 'img').attr('aria-label', 'Scatter plot of accuracy against cost per 1,000 correct answers, one dot per model with its 95% interval.');
+    const yMin = Math.max(0, Math.floor(d3.min(rows, (r) => r.lo) / 10) * 10);
+    const y = d3.scaleLinear().domain([yMin, 100]).range([H - m.bottom, m.top]);
+    const yAxis = svg.append('g').attr('class', 'vb-axis').call(d3.axisLeft(y).ticks(5).tickFormat((v) => `${v}%`));
+    const yw = d3.max(yAxis.selectAll('text').nodes(), (n) => n.getComputedTextLength()) || 28;
+    m.left = yw + 30;
+    svg.append('text').attr('class', 'vb-tick').attr('transform', `translate(10,${(m.top + H - m.bottom) / 2}) rotate(-90)`)
+      .attr('text-anchor', 'middle').text('Accuracy');
+    yAxis.attr('transform', `translate(${m.left},0)`);
+    const x0 = m.left + freeW;
+    const ext = d3.extent(paid, (r) => r.cost);
+    const x = d3.scaleLog().domain(ext[0] ? [ext[0] / 2.2, ext[1] * 2.2] : [0.1, 10]).range([x0 + 16, W - m.right - 70]);
+    svg.insert('g', ':first-child').attr('class', 'vb-grid').attr('transform', `translate(${m.left},0)`)
+      .call(d3.axisLeft(y).ticks(5).tickSize(-(W - m.left - m.right)).tickFormat(''));
+    svg.append('g').attr('class', 'vb-axis').attr('transform', `translate(0,${H - m.bottom})`)
+      .call(d3.axisBottom(x).tickValues(vb.logTicks(x, 44)).tickFormat((v) => `$${d3.format('~g')(v)}`));
+    svg.append('text').attr('class', 'vb-tick').attr('x', (x0 + W - m.right) / 2).attr('y', H - 6).attr('text-anchor', 'middle').text('USD per 1,000 correct answers');
+    if (free.length) {
+      svg.append('line').attr('x1', x0).attr('x2', x0).attr('y1', m.top).attr('y2', H - m.bottom).style('stroke', 'var(--cds-chart-reference)').style('stroke-dasharray', '3 3');
+      svg.append('text').attr('class', 'vb-tick').attr('x', m.left + freeW / 2).attr('y', H - m.bottom + 18).attr('text-anchor', 'middle').text('Free');
+    }
+    // Free models share one column; spread them a little so whiskers don't overlap.
+    const freeStep = Math.min(16, freeW / Math.max(1, free.length + 1));
+    const px = (r) => (r.cost > 0 ? x(r.cost) : m.left + freeW / 2 + (free.indexOf(r) - (free.length - 1) / 2) * freeStep);
+    const t = vb.tip(el);
+    const g = svg.append('g');
+    rows.forEach((r) => {
+      g.append('line').attr('x1', px(r)).attr('x2', px(r)).attr('y1', y(r.lo)).attr('y2', y(r.hi))
+        .style('stroke', vb.color(r.host)).style('stroke-width', 2).style('opacity', 0.55);
+    });
+    g.selectAll('circle').data(rows).join('circle')
+      .attr('cx', px).attr('cy', (r) => y(r.acc)).attr('r', 6)
+      .style('fill', (r) => vb.color(r.host)).style('stroke', 'var(--color-panel)').style('stroke-width', 2);
+    // Each label takes the first spot (right, left, below, above its dot)
+    // that stays in the chart and clear of every dot and placed label.
+    const boxes = rows.flatMap((r) => [
+      { x: px(r) - 8, y: y(r.acc) - 8, w: 16, h: 16 },
+      { x: px(r) - 2, y: y(r.hi), w: 4, h: Math.max(0, y(r.lo) - y(r.hi)) },
+    ]);
+    const hits = (a, b) => a.x < b.x + b.w + 3 && b.x < a.x + a.w + 3 && a.y < b.y + b.h + 2 && b.y < a.y + a.h + 2;
+    rows.slice().sort((a, b) => b.acc - a.acc).forEach((r) => {
+      const text = svg.append('text').attr('class', 'vb-label').text(W < 560 ? vb.shortName(r.model) : vb.name(r.model));
+      const w = text.node().getComputedTextLength(), h = 12;
+      const cx = px(r), cy = y(r.acc);
+      const spots = [
+        { x: cx + 11, y: cy - h / 2 }, { x: cx - 11 - w, y: cy - h / 2 },
+        { x: cx - w / 2, y: cy + 12 }, { x: cx - w / 2, y: cy - 12 - h },
+        { x: cx + 11, y: cy + 10 }, { x: cx - 11 - w, y: cy + 10 },
+        { x: cx + 4, y: cy - 14 - h }, { x: cx - 4 - w, y: cy - 14 - h },
+      ];
+      const inside = (b) => b.x >= 0 && b.x + b.w <= W && b.y >= 0 && b.y + b.h <= H - m.bottom;
+      const spot = spots.map((s) => ({ ...s, w, h })).find((b) => inside(b) && !boxes.some((o) => hits(b, o))) || { ...spots[0], w, h };
+      text.attr('x', spot.x).attr('y', spot.y + h - 2);
+      boxes.push(spot);
+    });
+    g.selectAll('rect.hit').data(rows).join('rect').attr('class', 'hit')
+      .attr('x', (r) => px(r) - 14).attr('y', (r) => y(r.hi) - 8).attr('width', 28).attr('height', (r) => Math.max(28, y(r.lo) - y(r.hi) + 16))
+      .style('fill', 'transparent')
+      .on('pointermove', (e, r) => t.show(e, vb.name(r.model), [
+        `Accuracy ${vb.pct(r.accuracy_pct)} (95% interval ${+r.accuracy_lo}–${+r.accuracy_hi})`,
+        r.cost > 0 ? `$${r.cost} per 1,000 correct answers` : 'Free: runs locally',
+        `Whole run: $${+r.cost_usd} for ${+r.requests} requests`,
+      ]))
+      .on('pointerleave', () => t.hide());
+  });
+}</script>
+
+<script>{
+  const CATS = [
+    ['read_only', 'Lookups'],
+    ['arguments', 'Lookups with arguments'],
+    ['change', 'Changes'],
+    ['dangerous', 'Dangerous requests'],
+    ['out_of_scope', "Can't be done"],
+    ['injection', 'Prompt injection'],
+  ];
+
+  // Colour bands for the heat map, matching its key.
+  const GOOD = 95, FAIR = 80;
+
+  dash.draw('heat', (el) => {
+    const data = vb.ready(el, 'categories', 'summary');
+    if (!data) return;
+    const [cats, summary] = data;
+    const order = vb.models(summary);
+    el.style.gridTemplateColumns = `max-content repeat(${CATS.length}, minmax(64px, 1fr))`;
+    const cells = [document.createElement('div')];
+    CATS.forEach(([, label]) => cells.push(Object.assign(document.createElement('div'), { className: 'vb-heat-h', textContent: label })));
+    order.forEach((r) => {
+      const m = document.createElement('div');
+      m.className = 'vb-heat-m';
+      m.append(vb.swatch(r.host), vb.name(r.model));
+      cells.push(m);
+      CATS.forEach(([key, label]) => {
+        const row = cats.find((c) => c.model === r.model && c.category === key);
+        const c = document.createElement('div');
+        c.className = 'vb-heat-c';
+        if (row) {
+          const v = +row.accuracy_pct;
+          c.textContent = vb.pct(v);
+          c.dataset.source = 'categories';
+          c.dataset.field = 'accuracy_pct';
+          c.dataset.where = `model=${vb.enc(r.model)}&category=${vb.enc(key)}`;
+          c.title = `${vb.name(r.model)}, ${label}: ${vb.pct(v)}`;
+          const band = v >= GOOD ? ['--color-ok', 28] : v >= FAIR ? ['--color-warn', 32] : ['--color-bad', 32];
+          c.style.background = `color-mix(in srgb, var(${band[0]}) ${band[1]}%, var(--color-bg))`;
+        } else {
+          c.textContent = '–';
+        }
+        cells.push(c);
+      });
+    });
+    el.replaceChildren(...cells);
+  });
+
+  dash.draw('acted', (el) => {
+    const data = vb.ready(el, 'summary');
+    if (!data) return;
+    const rows = vb.models(data[0]).sort((a, b) => +b.acted_on_change_pct - +a.acted_on_change_pct);
+    const animate = !el.dataset.played && !vb.reduced();
+    el.dataset.played = '1';
+    const parts = [];
+    rows.forEach((r) => {
+      const v = +r.acted_on_change_pct;
+      const label = document.createElement('span');
+      label.className = 'vb-model';
+      label.append(vb.swatch(r.host), vb.name(r.model));
+      const track = document.createElement('div');
+      track.className = 'vb-bar-track';
+      track.setAttribute('role', 'img');
+      track.setAttribute('aria-label', `${vb.name(r.model)} acted on ${v}% of change requests`);
+      const bar = document.createElement('div');
+      bar.className = 'vb-bar';
+      bar.style.background = vb.color(r.host);
+      bar.style.width = animate ? '0%' : `${v}%`;
+      if (animate) requestAnimationFrame(() => { bar.style.transition = 'width var(--cds-dur-slow) var(--cds-ease-out)'; bar.style.width = `${v}%`; });
+      track.appendChild(bar);
+      const val = document.createElement('span');
+      val.className = 'vb-bar-v';
+      val.textContent = vb.pct(v);
+      val.dataset.source = 'summary';
+      val.dataset.field = 'acted_on_change_pct';
+      val.dataset.where = `model=${vb.enc(r.model)}`;
+      parts.push(label, track, val);
+    });
+    el.replaceChildren(...parts);
+  });
+}</script>
+
+<script>{
+  dash.draw('speed', (el) => {
+    const data = vb.ready(el, 'requests', 'summary');
+    if (!data) return;
+    const [reqs, summary] = data;
+    const order = vb.models(summary);
+    const host = Object.fromEntries(order.map((r) => [r.model, r.host]));
+    const pts = reqs.filter((q) => q.total_s !== null && q.total_s !== '' && +q.total_s > 0 && host[q.model]);
+    el.replaceChildren();
+    const W = Math.max(300, el.clientWidth), rowH = 40;
+    const m = { top: 8, right: 16, bottom: 34, left: 0 };
+    const H = m.top + rowH * order.length + m.bottom;
+    const svg = d3.select(el).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`)
+      .attr('role', 'img').attr('aria-label', 'Strip plot of response time per request for each model, on a log scale, with each model\'s median marked.');
+    const names = svg.append('g');
+    order.forEach((r, i) => names.append('text').attr('class', 'vb-label').attr('x', 0).attr('y', m.top + i * rowH + rowH / 2 + 4).text(vb.name(r.model)));
+    m.left = d3.max(names.selectAll('text').nodes(), (n) => n.getComputedTextLength()) + 16;
+    const ext = d3.extent(pts, (q) => +q.total_s);
+    const x = d3.scaleLog().domain([Math.max(0.1, ext[0] / 1.3), ext[1] * 1.3]).range([m.left, W - m.right]);
+    svg.append('g').attr('class', 'vb-grid').attr('transform', `translate(0,${H - m.bottom})`)
+      .call(d3.axisBottom(x).tickValues(vb.logTicks(x, 44)).tickSize(-(H - m.top - m.bottom)).tickFormat(''));
+    svg.append('g').attr('class', 'vb-axis').attr('transform', `translate(0,${H - m.bottom})`)
+      .call(d3.axisBottom(x).tickValues(vb.logTicks(x, 44)).tickFormat((v) => `${d3.format('~g')(v)} s`));
+    const band = new Map(order.map((r, i) => [r.model, m.top + i * rowH + rowH / 2]));
+    let seed = 7;
+    const jitter = () => { seed = (seed * 16807) % 2147483647; return (seed / 2147483647 - 0.5) * (rowH * 0.55); };
+    const t = vb.tip(el);
+    svg.append('g').selectAll('circle').data(pts).join('circle')
+      .attr('cx', (q) => x(+q.total_s)).attr('cy', (q) => band.get(q.model) + jitter()).attr('r', 3)
+      .style('fill', (q) => vb.color(host[q.model])).style('opacity', 0.45)
+      .on('pointermove', (e, q) => t.show(e, `${vb.name(q.model)} · ${q.case_id}`, [
+        `${d3.format('.2f')(+q.total_s)} s to the complete answer`,
+        `Outcome: ${String(q.outcome).replace(/_/g, ' ')}`,
+      ]))
+      .on('pointerleave', () => t.hide());
+    order.forEach((r) => {
+      const ts = pts.filter((q) => q.model === r.model).map((q) => +q.total_s);
+      if (!ts.length) return;
+      const med = d3.median(ts), cy = band.get(r.model);
+      svg.append('line').attr('x1', x(med)).attr('x2', x(med)).attr('y1', cy - rowH * 0.36).attr('y2', cy + rowH * 0.36)
+        .style('stroke', 'var(--color-fg)').style('stroke-width', 2);
+    });
+  });
+}</script>
+
+<p class="vb-foot">Generated by <code>toolbench report</code> on /*__GENERATED__*/ from runs /*__RUNS__*/.</p>
+</div>
+<script>
+  dash.run();
+  let lastWidth = document.documentElement.clientWidth, pending;
+  window.addEventListener('resize', () => {
+    clearTimeout(pending);
+    pending = setTimeout(() => {
+      const w = document.documentElement.clientWidth;
+      if (w !== lastWidth) { lastWidth = w; dash.run(); }
+    }, 150);
+  });
+</script>
+</body>
+</html>

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -271,9 +272,8 @@ def _host(key: str, provider: str) -> str:
     return provider
 
 
-def export_csv(df: pd.DataFrame, out: Path) -> list[Path]:
-    """Numeric tables for other tools (the HTML results page reads these)."""
-    out.mkdir(parents=True, exist_ok=True)
+def tables(df: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    """Numeric tables behind the CSVs and the HTML results page."""
     summary = []
     for key, g in df.groupby("model_key", sort=True):
         ok = g[g["answered"]]
@@ -301,15 +301,40 @@ def export_csv(df: pd.DataFrame, out: Path) -> list[Path]:
             "cost_usd": round(spent, 4),
             "usd_per_1k_correct": round(1000 * spent / k, 3) if k else None,
         })
-    paths = [out / "summary.csv", out / "categories.csv", out / "requests.csv"]
-    pd.DataFrame(summary).to_csv(paths[0], index=False)
     ok = df[df["answered"]]
     cats = (ok.groupby(["model_key", "category"])["correct"]
             .agg(lambda s: round(100 * s.astype(bool).mean(), 1)).reset_index()
             .rename(columns={"model_key": "model", "correct": "accuracy_pct"}))
-    cats.to_csv(paths[1], index=False)
     cols = ["model_key", "case_id", "category", "repeat", "outcome", "ttfo_s", "total_s", "cost_usd"]
     req = df[cols].rename(columns={"model_key": "model"})
     req = req.assign(outcome=req["outcome"].fillna("api_failure"))
-    req.round({"ttfo_s": 3, "total_s": 3, "cost_usd": 6}).to_csv(paths[2], index=False)
+    req = req.round({"ttfo_s": 3, "total_s": 3, "cost_usd": 6})
+    return {"summary": pd.DataFrame(summary), "categories": cats, "requests": req}
+
+
+def export_csv(t: dict[str, pd.DataFrame], out: Path) -> list[Path]:
+    out.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for name, frame in t.items():
+        paths.append(out / f"{name}.csv")
+        frame.to_csv(paths[-1], index=False)
     return paths
+
+
+SITE_TEMPLATE = Path(__file__).with_name("site_template.html")
+
+
+def write_site(t: dict[str, pd.DataFrame], runs: list[str], out: Path) -> Path:
+    """A single self-contained HTML results page, with the data embedded,
+    for static hosting such as GitHub Pages."""
+    data = {name: frame.astype(object).where(frame.notna(), None).to_dict(orient="records")
+            for name, frame in t.items()}
+    # "</" inside a <script> would end it early.
+    payload = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
+    html = (SITE_TEMPLATE.read_text()
+            .replace("/*__DATA__*/null", payload)
+            .replace("/*__GENERATED__*/", datetime.now(timezone.utc).strftime("%-d %B %Y"))
+            .replace("/*__RUNS__*/", ", ".join(sorted(runs))))
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(html)
+    return out

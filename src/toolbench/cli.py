@@ -9,7 +9,7 @@ from pathlib import Path
 
 from . import tools as tools_mod
 from .cases import load_cases
-from .report import export_csv, load_runs, score_frame, write_report
+from .report import export_csv, load_runs, score_frame, tables, write_report, write_site
 from .runner import RunSettings, load_models, run
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -65,8 +65,10 @@ def cmd_report(args) -> int:
     cases = load_cases(args.cases, {t.name for t in tools}, specs)
     scored = score_frame(df, cases, specs, {t.name for t in tools})
     path = write_report(scored, args.out)
-    export_csv(scored, args.out / "csv")
-    print(f"report in {path}, CSVs in {args.out / 'csv'}")
+    t = tables(scored)
+    export_csv(t, args.out / "csv")
+    site = write_site(t, [r.name for r in args.runs], args.site or args.out / "index.html")
+    print(f"report in {path}, CSVs in {args.out / 'csv'}, results page in {site}")
     return 0
 
 
@@ -98,6 +100,9 @@ def main(argv: list[str] | None = None) -> int:
     rep.add_argument("--cases", type=Path, default=ROOT / "cases")
     rep.add_argument("--out", type=Path, default=ROOT / "report")
     rep.add_argument("--exclude", help="comma-separated model keys to leave out")
+    rep.add_argument("--site", type=Path,
+                     help="where to write the HTML results page (default: <out>/index.html); "
+                          "docs/index.html is what GitHub Pages serves")
     rep.set_defaults(fn=cmd_report)
 
     args = p.parse_args(argv)

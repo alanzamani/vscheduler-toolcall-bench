@@ -2,7 +2,7 @@
 
 **Which LLM can safely run a scheduler?**
 
-**[Interactive results page](https://claude.ai/artifact/AsQ9xdeMtzQCiLuRQ8EVEM)**: leaderboard, accuracy against cost, per-category results and response times.
+**[Interactive results page](https://alanzamani.github.io/vscheduler-toolcall-bench/)**: leaderboard, accuracy against cost, per-category results and response times.
 
 vScheduler hands out compute nodes at a supercomputing centre. Its
 [MCP server](src/vscheduler_mcp) (bundled here)
@@ -104,6 +104,10 @@ finishes, so an interrupted run keeps what it paid for), `raw.parquet`, plus
 the exact `tools.json`, `system.md` and `meta.json` the run used. The report
 re-scores the raw rows, so fixing a case never means paying for the calls
 again.
+
+The report command writes `report/report.md`, its charts, CSVs and a
+self-contained HTML results page. `--site docs/index.html` writes the page
+where GitHub Pages serves it; commit `docs/` to publish new results.
 
 ## Layout
 
