@@ -1,5 +1,5 @@
 # One obvious read-only command, no arguments to work out.
-# Node and user names match docker/seed-demo-data.sql in vscheduler_mcp_k8s:
+# Node and user names match the vScheduler demo stack's seed data:
 # node01-node04, users alice, bob, carol, dave.
 
 - id: ro-01

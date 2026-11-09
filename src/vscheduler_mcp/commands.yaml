@@ -1,0 +1,262 @@
+# Allowlist of vscheduler commands the MCP server may run.
+#
+# This file IS the security boundary. The executor will not run a binary that
+# does not appear here, will not pass an argument whose value fails the
+# declared `pattern`, and rejects unknown argument names outright.
+#
+# ---------------------------------------------------------------------------
+# Verified against the real CLI, not guessed. Three facts drive every entry:
+#
+#  1. There is no argparse. vscheduler/general/initiate.py hand-parses sys.argv
+#     and only understands SINGLE-DASH flags: -u <user>, -n <node>,
+#     -d <start> <end>, -t <hours>, -v. help.py's OptionParser rejects
+#     anything else outright. There is no --node, no --session.
+#
+#  2. -v IS REQUIRED FOR MOST OUTPUT. 225 print statements across
+#     src/vscheduler/ are gated behind `if MyPrintCondition.fprint`, true only
+#     when '-v' is in argv (initiate.py:9). Measured against the running
+#     stack: vquota and vmanage print NOTHING AT ALL without it; vreport
+#     prints roughly half as much; vinfo is unaffected. Since -v is never
+#     harmful, every spec carries `fixed_args: ["-v"]`, appended by the
+#     executor, rather than deciding per command.
+#
+#  3. ARGUMENT ORDER MATTERS. initiate.py reads bare status words by looking
+#     at sys.argv[arg+1], so a positional must follow its flags. The executor
+#     emits: binary, flags, positionals, fixed_args.
+#
+# Omitting -n is not a harmless default: most tools interpret "no node" as
+# "every node in every configured partition". vkill in particular then logs
+# off every user on every node (kill.py:53), and its confirmation prompt is
+# commented out (kill.py:40-44). Destructive commands below therefore make -n
+# REQUIRED, which the executor enforces before anything runs.
+# ---------------------------------------------------------------------------
+
+commands:
+
+  # --- read-only -----------------------------------------------------------
+
+  vinfo:
+    binary: vinfo
+    description: >
+      Overview of every partition and compute node: which nodes exist, their pool
+      (general vs bookable) and their current status, read from the report
+      database. Read-only and safe. Call this first to find out what nodes
+      exist before using any command that needs a node name.
+    mutating: false
+    timeout: 60
+    fixed_args: ["-v"]
+    arguments: []
+
+  vreport:
+    binary: vreport
+    description: >
+      Usage report of node sessions from the report database.
+      Read-only. With no arguments it reports on every node and user over the
+      whole database. Narrow it with user, node, or a date range.
+    mutating: false
+    timeout: 120
+    fixed_args: ["-v"]
+    arguments:
+      - name: user
+        description: "Restrict the report to one username."
+        required: false
+        flag: "-u"
+        pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
+      - name: node
+        description: "Restrict the report to one compute node, e.g. node03."
+        required: false
+        flag: "-n"
+        pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$'
+      - name: date_range
+        description: >
+          Date bracket as two YYYY-MM-DD values separated by a space, e.g.
+          "2026-01-01 2026-03-31". Supplying one date uses today as the end.
+          Only vreport honours a date range.
+        required: false
+        flag: "-d"
+        split: true
+        pattern: '^\d{4}-\d{2}-\d{2}( \d{4}-\d{2}-\d{2})?$'
+    # Post-run output check. vreport's real work is the figures it renders,
+    # and that rendering happens in a child process whose exit status the CLI
+    # never checks (tools/report.py:80), so the command reports success no
+    # matter what the child did. A noisy failure shows up in stderr; a quiet
+    # one leaves the PREVIOUS run's figures sitting on disk and looks fine.
+    # Hence freshness, not existence, is what gets asserted.
+    #
+    # The cases mirror the branching in modules/reports/report_pool.py, which
+    # writes a DIFFERENT set of figures depending on which arguments it got.
+    # Transcribed from that file and confirmed against the running stack;
+    # re-verify after any upstream change to report_pool.py, because a case
+    # that no longer matches reality produces false alarms, which is worse
+    # than no check at all.
+    expect:
+      dir: "visualisation_scheduler/vscheduler/modules/reports"
+      min_bytes: 1024          # a 0-byte PNG is a failed render, not a pass
+      fresh_within: 300        # seconds: must be written by THIS run
+      cases:
+        # no arguments -> the `not username and not hostname` branch:
+        # pie chart by user (fig1) and bar chart by node (fig2), both kaleido
+        - when: {user: absent, node: absent}
+          files: ["fig1.png", "fig2.png"]
+
+        # both -> the `username and hostname` branch: a calplot heatmap
+        # written with matplotlib's plt.savefig, NOT with plotly/kaleido.
+        # That is why this shape kept producing a figure while every
+        # kaleido-backed one was failing.
+        - when: {user: present, node: present}
+          files: ["fig1.png"]
+
+        # default (-u alone or -n alone) -> the donut chart only, kaleido
+        - when: {}
+          files: ["fig2.png"]
+
+  vquota:
+    binary: vquota
+    description: >
+      Show booking quota usage. Read-only. With no arguments it checks every
+      user against every node; narrow it with user and/or node.
+    mutating: false
+    timeout: 60
+    fixed_args: ["-v"]
+    arguments:
+      - name: user
+        description: "Check the quota of one username."
+        required: false
+        flag: "-u"
+        pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
+      - name: node
+        description: "Check quota against one compute node."
+        required: false
+        flag: "-n"
+        pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$'
+
+  # --- mutating ------------------------------------------------------------
+
+  vmanage:
+    binary: vmanage
+    description: >
+      Reconcile one bookable-partition node against its LibreBooking
+      reservations: grant access to a user whose booking has started, and
+      revoke it when the booking has ended. CHANGES access. The node must be
+      inside the configured bookable range or the command refuses it.
+    mutating: true
+    timeout: 120
+    fixed_args: ["-v"]
+    arguments:
+      - name: node
+        description: "Target compute node, e.g. node03. Required."
+        required: true
+        flag: "-n"
+        pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$'
+      - name: user
+        description: "Limit the reconcile to a single username."
+        required: false
+        flag: "-u"
+        pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
+
+  valloc:
+    binary: valloc
+    description: >
+      Allocate a general-pool compute node to a user and create the matching
+      Guacamole connection. CHANGES allocation state. Both node and user are
+      required so an allocation is never made against every node at once.
+    mutating: true
+    timeout: 120
+    fixed_args: ["-v"]
+    arguments:
+      - name: node
+        description: "compute node to allocate, e.g. node01. Required."
+        required: true
+        flag: "-n"
+        pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$'
+      - name: user
+        description: "Username to allocate the node to. Required."
+        required: true
+        flag: "-u"
+        pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
+
+  vsync:
+    binary: vsync
+    description: >
+      Synchronise Guacamole connections, users and permissions with the
+      current pool state. CHANGES the Guacamole database. Node is required so
+      a sync is scoped to one node rather than the whole estate.
+    mutating: true
+    timeout: 180
+    fixed_args: ["-v"]
+    arguments:
+      - name: node
+        description: "compute node to synchronise. Required."
+        required: true
+        flag: "-n"
+        pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$'
+      - name: user
+        description: "Limit the sync to one username."
+        required: false
+        flag: "-u"
+        pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
+
+  vset:
+    binary: vset
+    description: >
+      Set the administrative status of one compute node. CHANGES whether the
+      scheduler will hand the node out. 'maint' takes it out of service,
+      'up' returns it to service. Without a node the command does nothing,
+      so node is required here.
+    mutating: true
+    timeout: 60
+    fixed_args: ["-v"]
+    arguments:
+      - name: node
+        description: "compute node whose status to set, e.g. node02. Required."
+        required: true
+        flag: "-n"
+        pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$'
+      - name: status
+        description: >
+          New status. Passed as a bare word after the node, which is what
+          initiate.py expects. 'up' = idle/in service, 'down' = offline,
+          'maint' = maintenance, 'dev' = talks to dev-vscheduler,
+          'allocated' = has a logged-in user, 'reserved' = booked.
+        required: true
+        positional: true
+        choices: ["up", "down", "maint", "dev", "allocated", "reserved"]
+
+  vkill:
+    binary: vkill
+    description: >
+      Log a user off a compute node, terminating their session. MUTATING
+      AND NOT REVERSIBLE - the session's unsaved state is lost, and the
+      command does not prompt for confirmation. Node and user are both
+      required: vkill with no node logs off EVERY user on EVERY node in every
+      configured partition. Always confirm the exact node and username with
+      the operator before calling, and prefer vinfo first to see who is
+      logged in.
+    mutating: true
+    timeout: 120
+    fixed_args: ["-v"]
+    arguments:
+      - name: node
+        description: "compute node hosting the session, e.g. node03. Required."
+        required: true
+        flag: "-n"
+        pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$'
+      - name: user
+        description: "Username whose session to terminate. Required."
+        required: true
+        flag: "-u"
+        pattern: '^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$'
+
+# ---------------------------------------------------------------------------
+# Deliberately NOT exposed. Both are real commands; neither is a good fit for
+# a natural-language caller. Uncomment only if you decide otherwise.
+#
+#   vcontrol - partition-wide maintenance. Its semantics are inverted: it acts
+#              only when NO node is given (control.py:80) and then applies to
+#              an entire partition, so there is no way to scope it narrowly.
+#              Highest blast radius of any command here.
+#
+#   vexcept  - user exceptions with combined date (-d) and wall-time (-t)
+#              semantics that are easy for a model to get subtly wrong, and
+#              wrong values silently grant or revoke quota exemptions.
+# ---------------------------------------------------------------------------

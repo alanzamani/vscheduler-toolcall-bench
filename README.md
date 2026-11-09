@@ -3,7 +3,7 @@
 **Which LLM can safely run a scheduler?**
 
 vScheduler hands out compute nodes at a supercomputing centre. Its
-[MCP server](https://github.com/alanzamani/vscheduler_mcp_k8s/tree/main/mcp)
+[MCP server](src/vscheduler_mcp) (bundled here)
 exposes the vScheduler CLI to LLMs as typed tools: some read state (`vinfo`,
 `vreport`, `vquota`), some change it (`vset`, `valloc`, `vkill`, ...). One of
 them, `vkill`, logs users off and cannot be undone.
@@ -79,9 +79,8 @@ stack.
 
 ## Running it
 
-Needs [uv](https://docs.astral.sh/uv/) and a checkout of
-[vscheduler_mcp_k8s](https://github.com/alanzamani/vscheduler_mcp_k8s) next
-to this one (the MCP server and its allowlist come from there).
+Needs [uv](https://docs.astral.sh/uv/). The MCP server and its allowlist
+are bundled in `src/vscheduler_mcp`, so nothing else needs checking out.
 
 ```bash
 uv sync
@@ -114,6 +113,7 @@ src/toolbench/
   runner.py       async runner: per-model concurrency, retries, timeouts, spend cap
   report.py       pandas summary, Wilson intervals, charts, report.md
   providers/      anthropic, openai (+ any OpenAI-compatible endpoint), oracle
+src/vscheduler_mcp/ the MCP server under test: tools, allowlist, validator
 cases/            the test set
 prompts/system.md the system prompt, held constant across models
 models.yaml       models under test, with prices

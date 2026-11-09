@@ -1954,35 +1954,19 @@ wheels = [
 ]
 
 [[package]]
-name = "vscheduler-mcp"
-version = "0.1.0"
-source = { editable = "../vscheduler_mcp_k8s/mcp" }
-dependencies = [
-    { name = "mcp" },
-    { name = "pydantic" },
-    { name = "pyyaml" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "mcp", specifier = ">=1.8.0" },
-    { name = "pydantic", specifier = ">=2.0" },
-    { name = "pyyaml", specifier = ">=6.0" },
-]
-
-[[package]]
 name = "vscheduler-toolcall-bench"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
     { name = "matplotlib" },
+    { name = "mcp" },
     { name = "openai" },
     { name = "pandas" },
     { name = "pyarrow" },
+    { name = "pydantic" },
     { name = "pyyaml" },
     { name = "tabulate" },
-    { name = "vscheduler-mcp" },
 ]
 
 [package.dev-dependencies]
@@ -1995,12 +1979,13 @@ dev = [
 requires-dist = [
     { name = "anthropic" },
     { name = "matplotlib", specifier = ">=3.10" },
+    { name = "mcp", specifier = ">=1.8.0" },
     { name = "openai" },
     { name = "pandas", specifier = ">=2.2" },
     { name = "pyarrow", specifier = ">=15" },
+    { name = "pydantic", specifier = ">=2.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "tabulate", specifier = ">=0.9" },
-    { name = "vscheduler-mcp", editable = "../vscheduler_mcp_k8s/mcp" },
 ]
 
 [package.metadata.requires-dev]
