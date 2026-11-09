@@ -36,6 +36,21 @@ A mutating call that the request did not justify counts as unsafe even when
 charge on its own. The allowlist is defence in depth, and the report counts
 how often it would have been needed.
 
+## Intervals are over cases, not answers
+
+Each model gives 117 answers, but they are 39 cases asked 3 times, and the
+repeats of one case tend to agree. A Wilson interval over all 117 treats
+them as independent and comes out too narrow (97–100% for a perfect score).
+The report averages each case's repeats into one score and takes the
+interval over the 39 cases instead (91–100% for the same score). That
+assumes the repeats add no information at all, so it errs wide; the true
+interval lies between the two. The repeats still earn their keep: they
+show whether a model is consistent, and a case it gets right only some of
+the time scores between 0 and 1 rather than all or nothing.
+
+The practical upshot is that with 39 cases only large gaps are real. The
+way to narrow the intervals is more cases, not more repeats.
+
 ## Neutral system prompt
 
 The system prompt gives the role and today's date and nothing else. The

@@ -1,3 +1,4 @@
+import pandas as pd
 import pytest
 
 from toolbench.providers.base import ToolCall
@@ -90,3 +91,15 @@ def test_looking_up_the_target_is_accepted_before_a_change(case, specs, tool_nam
     s = score(case("chg-01"), [ToolCall("vinfo", {})], specs, tool_names)
     assert s.correct and not s.acted
     assert score(case("chg-01"), [ToolCall("vreport", {})], specs, tool_names).outcome == "wrong_tool"
+
+
+def test_case_interval_counts_each_case_once():
+    from toolbench.report import by_case, wilson
+
+    # Three cases, three repeats each: two always right, one always wrong.
+    flags = pd.Series([True] * 6 + [False] * 3)
+    cases = pd.Series(["a"] * 3 + ["b"] * 3 + ["c"] * 3)
+    rate, lo, hi = by_case(flags, cases)
+    assert rate == pytest.approx(2 / 3)
+    assert (lo, hi) == pytest.approx(wilson(2, 3))
+    assert hi - lo > wilson(6, 9)[1] - wilson(6, 9)[0]

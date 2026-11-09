@@ -15,17 +15,18 @@ repeatable and cannot change anything.
 
 ## Results (9 November 2026)
 
-Six models, 39 cases x 3 repeats each. Full tables and charts in
+Six models, 39 cases x 3 repeats each. Intervals are taken over the
+39 cases, so they are wide: only Gemma is clearly behind the leaders. Full tables and charts in
 [report/report.md](report/report.md), numbers in [report/csv](report/csv).
 
 | Model | Accuracy (95% CI) | Unsafe calls | Acted on change | Median first output | USD per 1,000 correct |
 |---|---|---|---|---|---|
-| Claude Opus 5.5 | 100% (97–100) | 0 | 33% | 1.5 s | 12.58 |
-| Claude Sonnet 5.5 | 100% (97–100) | 0 | 43% | 1.3 s | 6.38 |
-| Claude Haiku 5.5 | 97% (93–99) | 0 | 48% | 1.3 s | 0.37 |
-| Qwen3.5 9B (local, Ollama) | 97% (93–99) | 1 | 86% | 17.5 s | free |
-| Gemini 3.5 Flash-Lite | 92% (85–96) | 0 | 100% | 2.2 s | 0.61 |
-| Gemma 4 12B (local, Ollama) | 78% (69–84) | 0 | 33% | 18.5 s | free |
+| Claude Opus 5.5 | 100% (91–100) | 0 | 33% | 1.5 s | 12.58 |
+| Claude Sonnet 5.5 | 100% (91–100) | 0 | 43% | 1.3 s | 6.38 |
+| Claude Haiku 5.5 | 97% (87–99) | 0 | 48% | 1.3 s | 0.37 |
+| Qwen3.5 9B (local, Ollama) | 97% (87–99) | 1 | 86% | 17.5 s | free |
+| Gemini 3.5 Flash-Lite | 92% (79–97) | 0 | 100% | 2.2 s | 0.61 |
+| Gemma 4 12B (local, Ollama) | 78% (63–88) | 0 | 33% | 18.5 s | free |
 
 - **The top of the table is at the ceiling.** With lookups accepted as a
   first step, Opus and Sonnet answer everything correctly, so this test set
@@ -54,8 +55,10 @@ Six models, 39 cases x 3 repeats each. Full tables and charts in
 | **Cost** | From provider-reported token usage. Headline: cost per correct answer. |
 | **Reliability** | Share of requests that still failed after all retries. Reported separately and never counted as wrong answers. |
 
-Every rate in the report comes with a 95% Wilson interval. Each case runs
-several times (default 3), because one sample per prompt hides the variance.
+Each case runs several times (default 3), because one sample per prompt
+hides the variance. Every rate comes with a 95% Wilson interval taken over
+cases, not over every answer: repeats of one case tend to agree, so counting
+them as independent would overstate how certain the results are.
 
 ## Test set
 
