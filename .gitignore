@@ -3,5 +3,5 @@ __pycache__/
 *.pyc
 .pytest_cache/
 results/
-report/
+report/*.parquet
 .env

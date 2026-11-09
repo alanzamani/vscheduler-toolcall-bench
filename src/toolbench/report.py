@@ -141,16 +141,34 @@ def charts(df: pd.DataFrame, out: Path) -> list[str]:
         n_correct = int(g["correct"].astype(bool).sum())
         if n_correct:
             points.append((key, 100 * n_correct / len(g), g["cost_usd"].fillna(0).sum() / n_correct))
-    if points and any(p[2] > 0 for p in points):
+    paid = [p[2] for p in points if p[2] > 0]
+    if paid:
         fig, ax = plt.subplots(figsize=(6.4, 4))
         _axes(ax)
-        for key, acc, cpc in points:
-            ax.scatter(cpc, acc, s=64, color=ACCENT, edgecolor="white", linewidth=2, zorder=3)
-            ax.annotate(key, (cpc, acc), xytext=(7, 4), textcoords="offset points", fontsize=9, color=INK)
+        # A log axis has no zero, so free (local) models get their own
+        # column left of the cheapest paid one, behind a dashed line.
+        free_x = min(paid) / 6
+        has_free = len(paid) < len(points)
+        if has_free:
+            ax.axvline(free_x * 2.4, color=GRID, linestyle="--", linewidth=1)
+        labelled: list[tuple[float, float]] = []
+        for key, acc, cpc in sorted(points, key=lambda p: -p[1]):
+            x = cpc if cpc > 0 else free_x
+            ax.scatter(x, acc, s=64, color=ACCENT, edgecolor="white", linewidth=2, zorder=3)
+            # Below the dot when a label above would meet a neighbour's.
+            crowded = any(abs(math.log10(x / lx)) < 0.8 and abs(acc - la) < 2.5 for lx, la in labelled)
+            ax.annotate(key, (x, acc), xytext=(7, -13 if crowded else 4), textcoords="offset points",
+                        fontsize=9, color=INK)
+            labelled.append((x, acc))
         ax.set_xscale("log")
         ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"${v:g}"))
         ax.xaxis.set_minor_formatter(NullFormatter())
         ax.margins(x=0.25, y=0.1)
+        if has_free:
+            lo, hi = ax.get_xlim()
+            ticks = [t for t in ax.get_xticks() if free_x * 2.4 < t <= hi]
+            ax.set_xticks([free_x, *ticks], ["free", *(f"${t:g}" for t in ticks)])
+            ax.set_xlim(lo, hi)
         ax.set_xlabel("USD per correct answer (log scale)", color=INK_MUTED)
         ax.set_ylabel("Accuracy (%)", color=INK_MUTED)
         ax.set_title("Accuracy vs cost", loc="left", color=INK, fontsize=12)
