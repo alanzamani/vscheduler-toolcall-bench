@@ -15,10 +15,13 @@ dependencies = [
     # test and its allowlist validator.
     "mcp>=1.8.0",
     "pydantic>=2.0",
+    "psycopg[binary]>=3.2",
+    "httpx>=0.28.1",
 ]
 
 [project.scripts]
 toolbench = "toolbench.cli:main"
+docsrag = "docsrag.cli:main"
 
 [dependency-groups]
 dev = ["pytest>=8", "pytest-asyncio>=0.23"]
@@ -28,7 +31,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/toolbench", "src/vscheduler_mcp"]
+packages = ["src/toolbench", "src/vscheduler_mcp", "src/docsrag"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

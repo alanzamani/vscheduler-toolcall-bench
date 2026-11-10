@@ -30,6 +30,8 @@ async def fetch_from_mcp(command_spec: Path | None = None) -> list[Tool]:
     from mcp.client.stdio import stdio_client
 
     env = {**os.environ, "MCP_TRANSPORT": "stdio"}
+    # search_docs (the RAG track) is not part of the tool surface under test.
+    env.pop("VSCHEDULER_DOCS_DSN", None)
     if command_spec is not None:
         env["MCP_COMMAND_SPEC"] = str(command_spec)
     # Listing tools never touches SSH, so no vscheduler stack is needed here.

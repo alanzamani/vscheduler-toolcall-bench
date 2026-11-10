@@ -17,3 +17,8 @@ scheduler:
 
 Keep this copy in step with the server when `commands.yaml` changes, or
 the scores stop describing the tools a deployment really exposes.
+
+One addition that is not in the deployment repository's server: when
+`VSCHEDULER_DOCS_DSN` is set, `server.py` also registers `search_docs`,
+the RAG track's documentation search (`src/docsrag`). It is off by
+default, and the benchmark strips that variable before listing tools.

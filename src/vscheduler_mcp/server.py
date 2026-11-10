@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import os
 from typing import Annotated, Any, Literal, Optional
 
 try:  # mcp >= 2.0 renamed FastMCP to MCPServer; the surface we use is identical
@@ -171,6 +172,16 @@ async def list_vscheduler_commands() -> str:
     if not lines:
         return "No commands are currently allowlisted."
     return "\n".join(lines) + "\n(* = required)"
+
+
+# Opt-in documentation search (the RAG track, src/docsrag). Off unless a
+# pgvector DSN is configured, so the tool list the benchmark scores against
+# is unchanged by default.
+if os.getenv("VSCHEDULER_DOCS_DSN"):
+    from docsrag.tool import register as _register_docs
+
+    _register_docs(mcp)
+    log.info("registered tool search_docs (pgvector docs search)")
 
 
 def main() -> None:

@@ -1,0 +1,152 @@
+# Questions for the RAG track, with where the answer lives.
+#
+# A retrieved chunk counts as relevant when it comes from one of the listed
+# sources AND contains the listed phrase (case and whitespace ignored). Gold
+# is defined by text, not by chunk id, so the same question scores both
+# chunking strategies fairly. `docsrag eval` refuses to run if a phrase is
+# missing from its source, so a typo here cannot pass silently.
+#
+# style: "direct" questions reuse the docs' own words; "paraphrase" questions
+# describe the problem in an operator's words, so keyword search has less to
+# hold on to. `answer: none` marks questions the docs do not answer: the
+# right behaviour is to say so.
+
+questions:
+  - id: q01
+    style: direct
+    q: How do I make the MCP server read-only?
+    answer: [{source: mcp-server.md, contains: "MCP_READ_ONLY=true"}]
+  - id: q02
+    style: paraphrase
+    q: I want an assistant to look at the cluster but never be able to change anything. How?
+    answer: [{source: mcp-server.md, contains: "MCP_READ_ONLY=true"}]
+  - id: q03
+    style: direct
+    q: Which localhost port does the Kubernetes dev MCP endpoint use?
+    answer:
+      - {source: mcp-server.md, contains: "http://localhost:8940/mcp"}
+      - {source: deployment.md, contains: "| MCP `/mcp` | 8930 | 8931 | 8940 | 8941 |"}
+  - id: q04
+    style: direct
+    q: Why is the node argument required for vkill?
+    answer:
+      - {source: mcp-server.md, contains: "logs off every user on every node"}
+      - {source: cli-reference.md, contains: "logs off EVERY user on EVERY node"}
+  - id: q05
+    style: paraphrase
+    q: What is the worst that can happen if someone ends a session without saying which machine?
+    answer:
+      - {source: mcp-server.md, contains: "logs off every user on every node"}
+      - {source: cli-reference.md, contains: "logs off EVERY user on EVERY node"}
+  - id: q06
+    style: direct
+    q: Why is vcontrol not exposed as an MCP tool?
+    answer: [{source: cli-reference.md, contains: "Highest blast radius"}]
+  - id: q07
+    style: direct
+    q: What does the -v flag do for vscheduler commands?
+    answer: [{source: mcp-server.md, contains: "gated on `MyPrintCondition.fprint`"}]
+  - id: q08
+    style: paraphrase
+    q: vquota prints nothing at all. Is it broken?
+    answer: [{source: mcp-server.md, contains: "`vquota` and `vmanage` print nothing at all without it"}]
+  - id: q09
+    style: paraphrase
+    q: vreport says it succeeded. How can I tell whether the charts were really produced?
+    answer: [{source: mcp-server.md, contains: "declares the files a run must have **freshly** written"}]
+  - id: q10
+    style: direct
+    q: How do I connect Claude Desktop to the vscheduler MCP server?
+    answer: [{source: mcp-server.md, contains: "Settings → Connectors → Add custom connector"}]
+  - id: q11
+    style: paraphrase
+    q: The desktop app won't accept a plain http address for the server. What's the workaround?
+    answer: [{source: mcp-server.md, contains: "mcp-remote"}]
+  - id: q12
+    style: direct
+    q: How do I add another compute node?
+    answer: [{source: deployment.md, contains: "linux_general_range"}]
+  - id: q13
+    style: direct
+    q: Why does vmanage say a node is not a resource in booked?
+    answer: [{source: deployment.md, contains: "Its web installer has never been run"}]
+  - id: q14
+    style: paraphrase
+    q: How would I move this from my laptop's cluster to a real cloud Kubernetes service?
+    answer: [{source: deployment.md, contains: "Push the images to a registry"}]
+  - id: q15
+    style: paraphrase
+    q: Why can't plain kubectl apply -k deploy the stack?
+    answer: [{source: deployment.md, contains: "refuses files outside the kustomization directory"}]
+  - id: q16
+    style: direct
+    q: What is the Guacamole web login for the local stack?
+    answer: [{source: deployment.md, contains: "`guacadmin` / `guacadmin`"}]
+  - id: q17
+    style: direct
+    q: How do I turn off the login hook on a compute node?
+    answer: [{source: deployment.md, contains: "VS_ENABLE_LOGIN_HOOK=0"}]
+  - id: q18
+    style: paraphrase
+    q: What happens to a user's login if the scheduler server is down?
+    answer: [{source: ansible.md, contains: "the hook kills the session"}]
+  - id: q19
+    style: direct
+    q: Can the Ansible method deploy to Rocky Linux hosts?
+    answer: [{source: ansible.md, contains: "Ubuntu/Debian targets only"}]
+  - id: q20
+    style: paraphrase
+    q: Why is Guacamole slow to start on my M2 Mac?
+    answer: [{source: ansible.md, contains: "amd64-only"}]
+  - id: q21
+    style: direct
+    q: How do I create the report database by hand?
+    answer: [{source: admin-install.md, contains: "create database report"}]
+  - id: q22
+    style: direct
+    q: Which systemd unit runs the management socket server?
+    answer: [{source: admin-install.md, contains: "mgmt_socket.service"}]
+  - id: q23
+    style: direct
+    q: What was included in vScheduler release 1.0?
+    answer: [{source: release-notes.md, contains: "booked-guacamole sync"}]
+  - id: q24
+    style: direct
+    q: Which statuses can vset set on a node?
+    answer: [{source: cli-reference.md, contains: "Allowed values: up, down, maint, dev, allocated, reserved"}]
+  - id: q25
+    style: paraphrase
+    q: Does the MCP container hold any of the scheduler's own code or privileges?
+    answer:
+      - {source: mcp-server.md, contains: "holds **no vscheduler code**"}
+      - {source: deployment.md, contains: "It holds no vscheduler code"}
+  - id: q26
+    style: direct
+    q: How does the Ansible method fetch credentials from Vaultwarden?
+    answer: [{source: ansible.md, contains: "use_vaultwarden: true"}]
+
+  # --- not in the docs: the right answer is "the docs don't cover this" ---
+  - id: n01
+    style: none
+    q: How do I enable single sign-on with Azure AD for vScheduler?
+    answer: none
+  - id: n02
+    style: none
+    q: How much does a vScheduler licence cost per user?
+    answer: none
+  - id: n03
+    style: none
+    q: How do I back up the MariaDB database to S3 every night?
+    answer: none
+  - id: n04
+    style: none
+    q: How do I rotate the TLS certificate on the MCP endpoint?
+    answer: none
+  - id: n05
+    style: none
+    q: Which Prometheus alerts should I set up for vScheduler?
+    answer: none
+  - id: n06
+    style: none
+    q: What is the maximum number of GPUs one user can be allocated?
+    answer: none

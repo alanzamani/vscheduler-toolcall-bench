@@ -100,3 +100,31 @@ Anthropic's server-side model fallback is deliberately left off, and so is
 any provider routing that might switch models. A refusal is recorded as a
 `refusal` stop reason, not silently answered by another model under this
 model's name.
+
+## RAG track
+
+- **Gold answers are phrases, not chunk ids.** A chunk is relevant if it
+  comes from the right document and contains the answer phrase. That
+  scores fixed windows and section chunks on the same terms, and a
+  re-chunk never silently invalidates the question set. The cost: a
+  chunk that answers in different words is scored as a miss, so the
+  numbers are a slight underestimate. If chunking splits the phrase
+  across two chunks, the report says so instead of hiding it.
+- **Exact search, no ANN index.** At a few dozen chunks a sequential
+  scan takes milliseconds, and exact search means the numbers measure the
+  embeddings and the chunking, not an approximate index.
+- **Keyword search is an OR query.** Postgres's default
+  (`plainto_tsquery`) requires every term, which returns nothing for most
+  natural-language questions. OR over stemmed terms is the fairer
+  baseline. It is still not BM25, and that is part of why hybrid
+  underperforms here.
+- **The abstention threshold is chosen by leave-one-out.** With 32
+  questions, a threshold fitted on the same questions it is scored on
+  would flatter the result. The tool uses the threshold fitted on all of
+  them, recorded in `report/rag_thresholds.json`.
+- **No tuning on the test set.** Chunk size, overlap and the RRF constant
+  were fixed before the first run and not changed after it. With one
+  small question set there is nothing held out to tune against.
+- **Small corpus.** Six documents is enough to compare configurations
+  against each other, but not to predict accuracy on a large document
+  set, where hybrid search and reranking usually matter more.

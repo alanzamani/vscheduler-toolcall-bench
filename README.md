@@ -46,6 +46,80 @@ Six models, 39 cases x 3 repeats each. Intervals are taken over the
   tier after retries) and OpenAI (no account credit at run time). Local
   models were timed one at a time on a 16 GB M2 Pro laptop.
 
+## RAG track: searching the vScheduler docs (10 November 2026)
+
+A second, separate track: an opt-in `search_docs` MCP tool that answers
+admin questions from the vScheduler documentation, and an evaluation of
+the retrieval behind it. Everything runs locally and costs nothing:
+embeddings from `nomic-embed-text` on Ollama, vectors in Postgres with
+pgvector.
+
+- **Corpus:** six documents, about 5,900 words, in [rag/corpus](rag/corpus):
+  - the admin install guide and release notes, verbatim from the official
+    [PawseySC/vScheduler](https://github.com/PawseySC/vScheduler) repository;
+  - the deployment guide, MCP server and Ansible docs, from the vScheduler
+    deployment repository (private), where the MCP server comes from;
+  - a CLI reference rendered from the same `commands.yaml` the tool-calling
+    track uses.
+
+  That is a small corpus, and the results should be read with that in mind.
+- **Questions:** 26 with a known answer location, 10 of them paraphrased
+  into an operator's words rather than the docs' own, plus 6 the docs do
+  not answer ([rag/questions.yaml](rag/questions.yaml)). A retrieved chunk
+  counts as correct when it comes from the right document and contains
+  the answer phrase, so both chunking strategies are scored on the same
+  terms.
+- **Configurations:** two chunking strategies (fixed 200-word windows
+  with 40 words of overlap, or one chunk per Markdown section, embedded
+  with its heading path) times three retrieval modes (vector, Postgres
+  full-text, and hybrid by reciprocal rank fusion).
+
+| Chunking | Retrieval | Recall@1 | Recall@3 (95% CI) | Recall@5 | MRR |
+|---|---|---|---|---|---|
+| By section | vector | 69% | 73% (54–86) | **88%** | **0.75** |
+| Fixed windows | vector | 65% | **77%** (58–89) | 81% | 0.74 |
+| Fixed windows | hybrid | 54% | 69% (50–83) | 81% | 0.66 |
+| By section | hybrid | 58% | 65% (46–81) | 85% | 0.66 |
+| By section | keyword | 38% | 62% (43–78) | 69% | 0.52 |
+| Fixed windows | keyword | 35% | 58% (39–74) | 77% | 0.50 |
+
+Full tables and the misses are in [report/rag.md](report/rag.md).
+
+- **Vector search wins; hybrid did not help here.** Full-text search ranks
+  the right chunk first only about a third of the time, and fusing it in
+  pulls vector search down. Common words ("node", "MCP", "server") appear
+  in most chunks of a corpus this focused. Hybrid usually pays off on
+  exact identifiers in a large corpus; this test does not show that.
+- **Section chunks vs fixed windows is a draw at this size.** Section
+  chunks do better at recall@5 and fixed windows at recall@3, and every
+  difference sits well inside the intervals. The tool uses section chunks
+  with vector search and returns five passages, the best recall@5.
+- **Saying "not in the docs" is the weak part.** The best match's cosine
+  similarity is only a rough signal: 0.72 on average for covered
+  questions, 0.65 for uncovered ones. With a leave-one-out threshold it
+  abstained on 5 of the 6 uncovered questions but also on 27% of the
+  covered ones. So `search_docs` does not hide weak matches. It marks them
+  `WEAK MATCH` and tells the model not to answer unless a passage states
+  the answer. A stronger signal (a reranker, or a model judging whether
+  the passages answer the question) is the next step.
+- **Scope:** retrieval only. The answer itself is written by whatever
+  model calls the tool, and is not scored here.
+
+```bash
+docker compose -f rag/compose.yml up -d     # pgvector on localhost:5433
+ollama pull nomic-embed-text
+uv run docsrag index                        # chunk + embed both strategies
+uv run docsrag eval                         # report/rag.md, report/csv/rag_*.csv
+uv run docsrag search "How do I make the MCP server read-only?"
+
+# serve it: search_docs appears only when a DSN is set
+VSCHEDULER_DOCS_DSN=postgresql://rag:rag@localhost:5433/rag \
+  MCP_TRANSPORT=stdio uv run python -m vscheduler_mcp.server
+```
+
+The tool-calling track never sees `search_docs`: the benchmark removes the
+DSN before it asks the server for its tools, so its results stay comparable.
+
 ## What it measures
 
 | | |
@@ -120,6 +194,9 @@ src/toolbench/
   report.py       pandas summary, Wilson intervals, charts, report.md
   providers/      anthropic, openai (+ any OpenAI-compatible endpoint), oracle
 src/vscheduler_mcp/ the MCP server under test: tools, allowlist, validator
+src/docsrag/      RAG track: corpus, chunking, Ollama embeddings, pgvector
+                  store, retrieval + fusion, evaluation, the search_docs tool
+rag/              corpus, questions, pgvector compose file
 cases/            the test set
 prompts/system.md the system prompt, held constant across models
 models.yaml       models under test, with prices
@@ -129,6 +206,8 @@ models.yaml       models under test, with prices
 
 - [x] v0: dry-run, single turn, 39 cases, Anthropic + OpenAI-compatible adapters
 - [x] First real run: Anthropic, Google and two local open-weights models (9 November 2026)
+- [x] RAG track: `search_docs` over the vScheduler docs, pgvector, retrieval evaluation (10 November 2026)
+- [ ] RAG: a reranker or LLM check for "the docs don't cover this", and an answer-faithfulness score
 - [ ] Add OpenAI, and one open-weights model on two inference providers
 - [ ] Grow the test set to ~60, adding paraphrases of existing cases to test consistency
 - [ ] Simulated multi-turn mode: fixed tool outputs from the demo data, so `vinfo → vset → vinfo` tasks and *indirect* prompt injection (instructions hidden in a tool's output) can be scored
